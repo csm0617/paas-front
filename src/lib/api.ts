@@ -66,6 +66,10 @@ export interface DeployCommand {
   readinessProbe?: ProbeSpec;
   targetCpuUtilization?: number;
   targetMemoryUtilization?: number;
+  enableService?: boolean;
+  serviceType?: string;
+  enableIngress?: boolean;
+  ingressDomain?: string;
 }
 
 export interface ApplicationDeployment {
@@ -310,3 +314,33 @@ export const networkApi = {
     await apiClient.delete(`/namespaces/${namespace}/ingresses/${name}`);
   }
 };
+
+export interface K8sConfigMap {
+  name: string;
+  namespace: string;
+  data: Record<string, string>;
+  creationTimestamp?: string;
+}
+
+export const configMapApi = {
+  list: async (namespace: string): Promise<K8sConfigMap[]> => {
+    const res = await apiClient.get<Result<K8sConfigMap[]>>(`/namespaces/${namespace}/configmaps`);
+    return res.data.data;
+  },
+  get: async (namespace: string, name: string): Promise<K8sConfigMap> => {
+    const res = await apiClient.get<Result<K8sConfigMap>>(`/namespaces/${namespace}/configmaps/${name}`);
+    return res.data.data;
+  },
+  create: async (namespace: string, configMap: { name: string; data: Record<string, string> }): Promise<K8sConfigMap> => {
+    const res = await apiClient.post<Result<K8sConfigMap>>(`/namespaces/${namespace}/configmaps`, configMap);
+    return res.data.data;
+  },
+  update: async (namespace: string, name: string, configMap: { data: Record<string, string> }): Promise<K8sConfigMap> => {
+    const res = await apiClient.put<Result<K8sConfigMap>>(`/namespaces/${namespace}/configmaps/${name}`, configMap);
+    return res.data.data;
+  },
+  delete: async (namespace: string, name: string): Promise<void> => {
+    await apiClient.delete(`/namespaces/${namespace}/configmaps/${name}`);
+  }
+};
+

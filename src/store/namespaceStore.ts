@@ -3,9 +3,11 @@ import { namespaceApi, Namespace, CreateNamespaceRequest } from '@/lib/api';
 
 interface NamespaceState {
   namespaces: Namespace[];
+  currentNamespace: string;
   loading: boolean;
   error: string | null;
 
+  setCurrentNamespace: (namespace: string) => void;
   fetchNamespaces: () => Promise<void>;
   createNamespace: (request: CreateNamespaceRequest) => Promise<void>;
   deleteNamespace: (name: string) => Promise<void>;
@@ -13,8 +15,11 @@ interface NamespaceState {
 
 export const useNamespaceStore = create<NamespaceState>((set, get) => ({
   namespaces: [],
+  currentNamespace: 'default',
   loading: false,
   error: null,
+
+  setCurrentNamespace: (namespace: string) => set({ currentNamespace: namespace }),
 
   fetchNamespaces: async () => {
     set({ loading: true, error: null });

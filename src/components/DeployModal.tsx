@@ -10,6 +10,7 @@ interface Props {
 
 export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [formData, setFormData] = useState<DeployCommand>({
     name: '',
@@ -21,6 +22,10 @@ export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
     env: {},
     targetCpuUtilization: 80,
     targetMemoryUtilization: 80,
+    enableService: false,
+    serviceType: 'ClusterIP',
+    enableIngress: false,
+    ingressDomain: '',
   });
 
   const [envList, setEnvList] = useState<{ key: string; value: string }[]>([]);
@@ -67,6 +72,13 @@ export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    
+    if (formData.enableIngress && !formData.ingressDomain?.trim()) {
+      setError('Domain (Host) is required when Ingress is enabled.');
+      return;
+    }
+
     setLoading(true);
     try {
       const command: DeployCommand = {
@@ -81,7 +93,7 @@ export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
       await onDeploy(command);
       onClose();
     } catch (err) {
-      alert('Deployment failed. See console.');
+      setError('Deployment failed. See console.');
       console.error(err);
     } finally {
       setLoading(false);
@@ -100,6 +112,11 @@ export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
 
         <div className="flex-1 overflow-y-auto p-6">
           <form id="deploy-form" onSubmit={handleSubmit} className="space-y-6">
+            {error && (
+              <div className="p-3 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-lg text-sm text-red-600 dark:text-red-400">
+                {error}
+              </div>
+            )}
             <div className="grid grid-cols-2 gap-6">
               <div>
                 <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Application Name</label>
@@ -217,6 +234,84 @@ export default function DeployModal({ isOpen, onClose, onDeploy }: Props) {
                     </button>
                   </div>
                 ))}
+              </div>
+            </div>
+
+            {/* Networking & Access */}
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-4">Networking & Access</h3>
+              
+              <div className="space-y-4">
+                {/* Service Toggle */}
+                <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable Internal Service</label>
+                    <p className="text-xs text-slate-500">Creates a Kubernetes Service to expose the application within the cluster.</p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="sr-only peer"
+                      checked={formData.enableService}
+                      onChange={(e) => {
+                        const checked = e.target.checked;
+                        setFormData({ 
+                          ...formData, 
+                          enableService: checked,
+                          enableIngress: checked ? formData.enableIngress : false 
+                        });
+                      }}
+                    />
+                    <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                  </label>
+                </div>
+
+                {formData.enableService && (
+                  <div className="pl-4 border-l-2 border-blue-500 space-y-4 animate-in fade-in slide-in-from-left-2">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Service Type</label>
+                      <select
+                        value={formData.serviceType}
+                        onChange={(e) => setFormData({ ...formData, serviceType: e.target.value })}
+                        className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                      >
+                        <option value="ClusterIP">ClusterIP (Internal Only)</option>
+                        <option value="NodePort">NodePort (Expose on Node IPs)</option>
+                      </select>
+                    </div>
+
+                    {/* Ingress Toggle */}
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/50 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
+                      <div>
+                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Enable External Access (Ingress)</label>
+                        <p className="text-xs text-slate-500">Expose the application to the internet via a domain name.</p>
+                      </div>
+                      <label className="relative inline-flex items-center cursor-pointer">
+                        <input 
+                          type="checkbox" 
+                          className="sr-only peer"
+                          checked={formData.enableIngress}
+                          onChange={(e) => setFormData({ ...formData, enableIngress: e.target.checked })}
+                        />
+                        <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-blue-600"></div>
+                      </label>
+                    </div>
+
+                    {formData.enableIngress && (
+                      <div className="pl-4 border-l-2 border-purple-500 animate-in fade-in slide-in-from-left-2">
+                        <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Domain (Host)</label>
+                        <input
+                          type="text"
+                          placeholder="e.g. app.example.com"
+                          value={formData.ingressDomain}
+                          onChange={(e) => setFormData({ ...formData, ingressDomain: e.target.value })}
+                          required={formData.enableIngress}
+                          className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none text-sm"
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
