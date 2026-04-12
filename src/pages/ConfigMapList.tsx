@@ -1,0 +1,205 @@
+import React, { useEffect, useState } from 'react';
+import { useConfigMapStore } from '@/store/configMapStore';
+import { useNamespaceStore } from '@/store/namespaceStore';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import ConfigMapModal from '@/components/ConfigMapModal';
+import { K8sConfigMap } from '@/lib/api';
+import { RefreshCw, FolderTree, AlertCircle, Trash2, Edit, Plus, FileCode } from 'lucide-react';
+
+export default function ConfigMapList() {
+  const { currentNamespace, setCurrentNamespace, namespaces, fetchNamespaces } = useNamespaceStore();
+  const { configMaps, loading, error, fetchConfigMaps, deleteConfigMap, createConfigMap, updateConfigMap } = useConfigMapStore();
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingConfigMap, setEditingConfigMap] = useState<K8sConfigMap | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<K8sConfigMap | null>(null);
+
+  useEffect(() => {
+    fetchNamespaces();
+  }, [fetchNamespaces]);
+
+  useEffect(() => {
+    fetchConfigMaps();
+  }, [fetchConfigMaps, currentNamespace]);
+
+  const handleDeleteClick = (configMap: K8sConfigMap) => {
+    setConfirmDelete(configMap);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDelete) return;
+    try {
+      await deleteConfigMap(confirmDelete.name);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete Config Group');
+    }
+  };
+
+  const handleCreateClick = () => {
+    setEditingConfigMap(null);
+    setIsModalOpen(true);
+  };
+
+  const handleEditClick = (configMap: K8sConfigMap) => {
+    setEditingConfigMap(configMap);
+    setIsModalOpen(true);
+  };
+
+  const handleModalSubmit = async (name: string, data: Record<string, string>) => {
+    if (editingConfigMap) {
+      await updateConfigMap(name, { data });
+    } else {
+      await createConfigMap({ name, data });
+    }
+    setIsModalOpen(false);
+  };
+
+  return (
+    <div className="h-full flex flex-col space-y-6">
+      {/* Top Action Bar */}
+      <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+            <FolderTree size={18} className="text-slate-500" />
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Namespace</span>
+            <select
+              value={currentNamespace}
+              onChange={(e) => setCurrentNamespace(e.target.value)}
+              className="bg-transparent border-none text-sm font-bold text-blue-600 dark:text-blue-400 outline-none cursor-pointer"
+            >
+              {namespaces.length > 0 ? (
+                namespaces.map(ns => (
+                  <option key={ns.name} value={ns.name}>{ns.name}</option>
+                ))
+              ) : (
+                <>
+                  <option value="default">default</option>
+                  <option value="kube-system">kube-system</option>
+                </>
+              )}
+            </select>
+          </div>
+          <button
+            onClick={() => fetchConfigMaps()}
+            disabled={loading}
+            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            title="Refresh"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+          </button>
+        </div>
+        <button
+          onClick={handleCreateClick}
+          className="flex items-center space-x-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-xl shadow-sm transition-colors text-sm font-medium"
+        >
+          <Plus size={18} />
+          <span>Create Config Group</span>
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center space-x-3">
+          <AlertCircle size={20} />
+          <span className="font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* Main Content */}
+      <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
+        <div className="overflow-x-auto flex-1">
+          <table className="w-full text-left border-collapse">
+            <thead>
+              <tr className="bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700 text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                <th className="p-4 font-medium">Name</th>
+                <th className="p-4 font-medium">Data Keys</th>
+                <th className="p-4 font-medium">Age</th>
+                <th className="p-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {loading && configMaps.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-slate-500">
+                    <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />
+                    Loading Config Groups...
+                  </td>
+                </tr>
+              ) : configMaps.length === 0 ? (
+                <tr>
+                  <td colSpan={4} className="p-8 text-center text-slate-500">
+                    <div className="flex flex-col items-center justify-center space-y-3 py-8">
+                      <FileCode size={48} className="text-slate-300 dark:text-slate-600" />
+                      <p>No Config Groups found in namespace {currentNamespace}.</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                configMaps.map((cm) => (
+                  <tr key={cm.name} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors group">
+                    <td className="p-4 font-medium text-sm text-slate-800 dark:text-slate-200">
+                      {cm.name}
+                    </td>
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-2">
+                        {cm.data && Object.keys(cm.data).length > 0 ? (
+                          Object.keys(cm.data).map((key) => (
+                            <span
+                              key={key}
+                              className="px-2 py-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md text-xs font-mono text-slate-600 dark:text-slate-400"
+                            >
+                              {key}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-xs text-slate-400 italic">No data</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="p-4 text-sm text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                      {cm.creationTimestamp ? new Date(cm.creationTimestamp).toLocaleDateString() : '-'}
+                    </td>
+                    <td className="p-4 text-right">
+                      <div className="flex justify-end items-center space-x-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() => handleEditClick(cm)}
+                          className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                          title="Edit Config Group"
+                        >
+                          <Edit size={18} />
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(cm)}
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                          title="Delete Config Group"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <ConfigMapModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSubmit={handleModalSubmit}
+        initialData={editingConfigMap}
+      />
+
+      <ConfirmDialog
+        isOpen={!!confirmDelete}
+        title="Delete Config Group"
+        message={`Are you sure you want to delete Config Group '${confirmDelete?.name}'?`}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDelete(null)}
+        confirmText="Delete"
+        isDestructive={true}
+      />
+    </div>
+  );
+}

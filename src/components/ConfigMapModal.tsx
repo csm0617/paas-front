@@ -1,0 +1,241 @@
+import React, { useState, useEffect, useRef } from 'react';
+import { X, Plus, Trash2, UploadCloud } from 'lucide-react';
+import { K8sConfigMap } from '@/lib/api';
+
+interface ConfigMapModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onSubmit: (name: string, data: Record<string, string>) => Promise<void>;
+  initialData?: K8sConfigMap | null;
+}
+
+export default function ConfigMapModal({ isOpen, onClose, onSubmit, initialData }: ConfigMapModalProps) {
+  const [name, setName] = useState('');
+  const [pairs, setPairs] = useState<{ key: string; value: string }[]>([{ key: '', value: '' }]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const activeUploadIndexRef = useRef<number | null>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    const index = activeUploadIndexRef.current;
+    
+    if (!file || index === null) return;
+
+    if (file.size > 2 * 1024 * 1024) {
+      setError(`File size exceeds 2MB limit.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const content = event.target?.result as string;
+      if (content.includes('\0')) {
+        setError(`File appears to be binary and cannot be uploaded.`);
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+      }
+      
+      const newPairs = [...pairs];
+      newPairs[index] = {
+        key: file.name,
+        value: content
+      };
+      setPairs(newPairs);
+      setError(null);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      activeUploadIndexRef.current = null;
+    };
+    reader.onerror = () => {
+      setError(`Failed to read file.`);
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    };
+    reader.readAsText(file);
+  };
+
+  const triggerFileUpload = (index: number) => {
+    activeUploadIndexRef.current = index;
+    fileInputRef.current?.click();
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (initialData) {
+        setName(initialData.name);
+        const initialPairs = Object.entries(initialData.data || {}).map(([key, value]) => ({ key, value }));
+        setPairs(initialPairs.length > 0 ? initialPairs : [{ key: '', value: '' }]);
+      } else {
+        setName('');
+        setPairs([{ key: '', value: '' }]);
+      }
+      setError(null);
+    }
+  }, [isOpen, initialData]);
+
+  if (!isOpen) return null;
+
+  const handleAddPair = () => {
+    setPairs([...pairs, { key: '', value: '' }]);
+  };
+
+  const handleRemovePair = (index: number) => {
+    setPairs(pairs.filter((_, i) => i !== index));
+  };
+
+  const handlePairChange = (index: number, field: 'key' | 'value', value: string) => {
+    const newPairs = [...pairs];
+    newPairs[index][field] = value;
+    setPairs(newPairs);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name) {
+      setError('Name is required');
+      return;
+    }
+
+    const data: Record<string, string> = {};
+    for (const pair of pairs) {
+      if (pair.key.trim()) {
+        data[pair.key.trim()] = pair.value;
+      }
+    }
+
+    setLoading(true);
+    setError(null);
+    try {
+      await onSubmit(name, data);
+      onClose();
+    } catch (err: any) {
+      setError(err.message || 'An error occurred');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">
+            {initialData ? 'Edit Config Group' : 'Create Config Group'}
+          </h2>
+          <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+          {error && (
+            <div className="p-4 bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400 rounded-xl text-sm border border-red-200 dark:border-red-800">
+              {error}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+              Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              disabled={!!initialData}
+              className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
+              placeholder="e.g. app-config"
+            />
+          </div>
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
+                Data (Key-Value Pairs)
+              </label>
+              <button
+                type="button"
+                onClick={handleAddPair}
+                className="text-sm flex items-center space-x-1 text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300"
+              >
+                <Plus size={16} />
+                <span>Add Pair</span>
+              </button>
+            </div>
+            
+            <div className="space-y-3">
+              {pairs.map((pair, index) => (
+                <div key={index} className="flex items-start space-x-3 bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <div className="flex-1 space-y-3">
+                    <input
+                      type="text"
+                      value={pair.key}
+                      onChange={(e) => handlePairChange(index, 'key', e.target.value)}
+                      placeholder="Key"
+                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono"
+                    />
+                    <textarea
+                      value={pair.value}
+                      onChange={(e) => handlePairChange(index, 'value', e.target.value)}
+                      placeholder="Value"
+                      rows={3}
+                      className="w-full px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm font-mono resize-y"
+                    />
+                  </div>
+                  <div className="flex flex-col space-y-2 mt-1">
+                    <button
+                      type="button"
+                      onClick={() => triggerFileUpload(index)}
+                      className="p-2 text-slate-400 hover:text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-lg transition-colors"
+                      title="Upload File"
+                    >
+                      <UploadCloud size={18} />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleRemovePair(index)}
+                      className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
+                      title="Remove Pair"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {pairs.length === 0 && (
+                <div className="text-center py-6 text-slate-500 dark:text-slate-400 text-sm bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700">
+                  No data pairs added. Click "Add Pair" to add one.
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-700 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-xl shadow-sm transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {loading && <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />}
+              <span>{initialData ? 'Save Changes' : 'Create'}</span>
+            </button>
+          </div>
+        </form>
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileUpload}
+          className="hidden"
+        />
+      </div>
+    </div>
+  );
+}
