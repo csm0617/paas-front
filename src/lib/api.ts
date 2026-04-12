@@ -101,6 +101,40 @@ export const namespaceApi = {
   },
 };
 
+export interface Pod {
+  name: string;
+  namespace: string;
+  status: string;
+  nodeName: string;
+  podIP: string;
+  startTime: string;
+  restarts: number;
+}
+
+export const podApi = {
+  list: async (namespace: string, labels?: Record<string, string>): Promise<Pod[]> => {
+    const res = await apiClient.get<Result<Pod[]>>(`/namespaces/${namespace}/pods`, { params: labels });
+    return res.data.data;
+  },
+  get: async (namespace: string, name: string): Promise<Pod> => {
+    const res = await apiClient.get<Result<Pod>>(`/namespaces/${namespace}/pods/${name}`);
+    return res.data.data;
+  },
+  delete: async (namespace: string, name: string): Promise<void> => {
+    await apiClient.delete(`/namespaces/${namespace}/pods/${name}`);
+  },
+  getLogs: async (namespace: string, name: string, tailLines: number = 100): Promise<string> => {
+    const res = await apiClient.get<Result<string>>(`/namespaces/${namespace}/pods/${name}/logs`, {
+      params: { tailLines },
+    });
+    return res.data.data;
+  },
+  getTerminalUrl: async (namespace: string, name: string): Promise<string> => {
+    const res = await apiClient.get<Result<string>>(`/namespaces/${namespace}/pods/${name}/terminal`);
+    return res.data.data;
+  }
+};
+
 export const api = {
   getDeployments: async (namespace: string): Promise<ApplicationDeployment[]> => {
     const res = await apiClient.get<Result<ApplicationDeployment[]>>(`/applications/deployments/${namespace}`);

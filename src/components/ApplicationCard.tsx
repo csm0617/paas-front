@@ -1,14 +1,14 @@
-import React from 'react';
-import { ApplicationDeployment } from '@/lib/api';
-import { Activity, Box, Cpu, Trash2, Edit3, TerminalSquare, FileText, ArrowUpCircle, Play, Square, RotateCw, Undo2 } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { ApplicationDeployment, podApi, Pod } from '@/lib/api';
+import { Activity, Box, Cpu, Trash2, Edit3, TerminalSquare, FileText, ArrowUpCircle, Play, Square, RotateCw, Undo2, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface Props {
   app: ApplicationDeployment;
   onScale: (app: ApplicationDeployment) => void;
   onUpdateImage: (app: ApplicationDeployment) => void;
   onDelete: (app: ApplicationDeployment) => void;
-  onViewLogs: (app: ApplicationDeployment) => void;
-  onOpenTerminal: (app: ApplicationDeployment) => void;
+  onViewLogs: (pod: Pod) => void;
+  onOpenTerminal: (pod: Pod) => void;
   onStart: (app: ApplicationDeployment) => void;
   onStop: (app: ApplicationDeployment) => void;
   onRestart: (app: ApplicationDeployment) => void;
@@ -30,6 +30,28 @@ export default function ApplicationCard({
   const isRunning = app.status === 'RUNNING';
   const isFailed = app.status === 'FAILED';
   const isStopped = app.status === 'STOPPED';
+
+  const [pods, setPods] = useState<Pod[]>([]);
+  const [showPods, setShowPods] = useState(false);
+  const [loadingPods, setLoadingPods] = useState(false);
+
+  const fetchPods = async () => {
+    try {
+      setLoadingPods(true);
+      const data = await podApi.list(app.namespace, { app: app.name });
+      setPods(data);
+    } catch (err) {
+      console.error('Failed to fetch pods:', err);
+    } finally {
+      setLoadingPods(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showPods) {
+      fetchPods();
+    }
+  }, [showPods, app.namespace, app.name]);
 
   return (
     <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm hover:shadow-md border border-slate-200 dark:border-slate-700 transition-all duration-300 overflow-hidden flex flex-col group relative">
@@ -136,18 +158,11 @@ export default function ApplicationCard({
             <Undo2 size={18} />
           </button>
           <button
-            onClick={() => onViewLogs(app)}
+            onClick={() => setShowPods(!showPods)}
             className="flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-            title="View Logs"
+            title={showPods ? "Hide Pods" : "Show Pods"}
           >
-            <FileText size={18} />
-          </button>
-          <button
-            onClick={() => onOpenTerminal(app)}
-            className="flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-            title="Terminal"
-          >
-            <TerminalSquare size={18} />
+            {showPods ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
           <button
             onClick={() => onDelete(app)}
@@ -157,6 +172,36 @@ export default function ApplicationCard({
             <Trash2 size={18} />
           </button>
         </div>
+
+        {showPods && (
+          <div className="mt-4 border-t border-slate-100 dark:border-slate-700/50 pt-4">
+            <h4 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Pods</h4>
+            {loadingPods ? (
+              <div className="text-sm text-slate-400">Loading pods...</div>
+            ) : pods.length === 0 ? (
+              <div className="text-sm text-slate-400">No pods found.</div>
+            ) : (
+              <div className="space-y-2">
+                {pods.map(pod => (
+                  <div key={pod.name} className="flex flex-col bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-mono text-slate-700 dark:text-slate-300 truncate w-32" title={pod.name}>{pod.name}</span>
+                      <span className={`text-[10px] px-1.5 py-0.5 rounded-sm ${pod.status === 'Running' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>{pod.status}</span>
+                    </div>
+                    <div className="flex justify-end space-x-1 mt-2">
+                      <button onClick={() => onViewLogs(pod)} className="p-1 text-slate-500 hover:text-blue-500" title="Logs">
+                        <FileText size={14} />
+                      </button>
+                      <button onClick={() => onOpenTerminal(pod)} className="p-1 text-slate-500 hover:text-blue-500" title="Terminal">
+                        <TerminalSquare size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

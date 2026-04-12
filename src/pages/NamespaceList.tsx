@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import { Plus, RefreshCw, Trash2, Box, AlertCircle } from 'lucide-react';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function NamespaceList() {
   const { namespaces, loading, error, fetchNamespaces, createNamespace, deleteNamespace } = useNamespaceStore();
   const [newNamespaceName, setNewNamespaceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [confirmDeleteNamespace, setConfirmDeleteNamespace] = useState<string | null>(null);
 
   useEffect(() => {
     fetchNamespaces();
@@ -26,18 +28,20 @@ export default function NamespaceList() {
     }
   };
 
-  const handleDelete = async (name: string) => {
+  const handleDeleteClick = (name: string) => {
     if (name === 'default' || name === 'kube-system' || name === 'kube-public' || name === 'kube-node-lease') {
       alert(`Cannot delete system namespace: ${name}`);
       return;
     }
-    
-    if (window.confirm(`Are you sure you want to delete namespace '${name}'? This action cannot be undone and will delete all resources within it.`)) {
-      try {
-        await deleteNamespace(name);
-      } catch (err: any) {
-        alert(err.message || 'Failed to delete namespace');
-      }
+    setConfirmDeleteNamespace(name);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!confirmDeleteNamespace) return;
+    try {
+      await deleteNamespace(confirmDeleteNamespace);
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete namespace');
     }
   };
 
@@ -143,7 +147,7 @@ export default function NamespaceList() {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <button
-                          onClick={() => handleDelete(ns.name)}
+                          onClick={() => handleDeleteClick(ns.name)}
                           disabled={isSystem}
                           className={`p-2 rounded-lg transition-colors ${
                             isSystem 
@@ -163,6 +167,16 @@ export default function NamespaceList() {
           </table>
         </div>
       </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmDeleteNamespace}
+        title="Delete Namespace"
+        message={`Are you sure you want to delete namespace '${confirmDeleteNamespace}'? This action cannot be undone and will delete all resources within it.`}
+        onConfirm={handleConfirmDelete}
+        onCancel={() => setConfirmDeleteNamespace(null)}
+        confirmText="Delete"
+        isDestructive={true}
+      />
     </div>
   );
 }

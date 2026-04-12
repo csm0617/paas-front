@@ -41,6 +41,17 @@ export default function Layout({ children }: { children: React.ReactNode }) {
             <span>Namespaces</span>
           </Link>
           <Link
+            to="/pods"
+            className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
+              location.pathname === '/pods'
+                ? 'bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 font-semibold'
+                : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-400'
+            }`}
+          >
+            <Box size={20} />
+            <span>Pods</span>
+          </Link>
+          <Link
             to="/settings"
             className={`flex items-center space-x-3 px-4 py-3 rounded-xl transition-all duration-200 ${
               location.pathname === '/settings'
@@ -58,7 +69,7 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <main className="flex-1 flex flex-col overflow-hidden">
         <header className="h-16 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 flex items-center px-8 shadow-sm z-10">
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-            {location.pathname === '/' ? 'Application Management' : location.pathname === '/namespaces' ? 'Namespace Management' : 'Settings'}
+            {location.pathname === '/' ? 'Application Management' : location.pathname === '/namespaces' ? 'Namespace Management' : location.pathname === '/pods' ? 'Pod Management' : 'Settings'}
           </h2>
         </header>
         <div className="flex-1 overflow-auto p-8">

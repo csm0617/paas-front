@@ -1,23 +1,23 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { ApplicationDeployment, api } from '@/lib/api';
+import { podApi, Pod } from '@/lib/api';
 import { X, RefreshCcw } from 'lucide-react';
 
 interface Props {
-  app: ApplicationDeployment | null;
+  pod: Pod | null;
   onClose: () => void;
 }
 
-export default function LogsDrawer({ app, onClose }: Props) {
+export default function LogsDrawer({ pod, onClose }: Props) {
   const [logs, setLogs] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(false);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   const fetchLogs = async () => {
-    if (!app) return;
+    if (!pod) return;
     try {
       setLoading(true);
-      const data = await api.getLogs(app.namespace, app.name, 200);
+      const data = await podApi.getLogs(pod.namespace, pod.name, 200);
       setLogs(data || 'No logs available.');
       // Auto scroll to bottom
       setTimeout(() => {
@@ -31,34 +31,35 @@ export default function LogsDrawer({ app, onClose }: Props) {
   };
 
   useEffect(() => {
-    if (app) {
+    if (pod) {
       fetchLogs();
     } else {
       setLogs('');
       setAutoRefresh(false);
     }
-  }, [app]);
+  }, [pod]);
 
   useEffect(() => {
     let interval: number;
-    if (autoRefresh && app) {
+    if (autoRefresh && pod) {
       interval = window.setInterval(() => {
         fetchLogs();
       }, 3000);
     }
     return () => clearInterval(interval);
-  }, [autoRefresh, app]);
+  }, [autoRefresh, pod]);
 
-  if (!app) return null;
+  if (!pod) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-3xl bg-slate-900 shadow-2xl flex flex-col border-l border-slate-700 transform transition-transform duration-300">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between text-slate-100 bg-slate-950">
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+        <div className="w-full max-w-5xl h-[85vh] bg-slate-900 shadow-2xl flex flex-col border border-slate-700 rounded-xl overflow-hidden transform transition-all pointer-events-auto">
+          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between text-slate-100 bg-slate-950">
           <div>
             <h2 className="text-lg font-bold font-mono text-blue-400">Log Viewer</h2>
-            <p className="text-xs text-slate-400 mt-1">{app.namespace} / {app.name}</p>
+            <p className="text-xs text-slate-400 mt-1">{pod.namespace} / {pod.name}</p>
           </div>
           <div className="flex items-center space-x-2">
             <button
@@ -95,6 +96,7 @@ export default function LogsDrawer({ app, onClose }: Props) {
           <div ref={logsEndRef} />
         </div>
       </div>
+    </div>
     </>
   );
 }

@@ -27,7 +27,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setNamespace: (namespace) => {
     set({ namespace });
-    get().fetchDeployments();
   },
 
   fetchDeployments: async () => {

@@ -1,22 +1,33 @@
 import React, { useEffect, useState } from 'react';
 import { useAppStore } from '@/store/appStore';
+import { useNamespaceStore } from '@/store/namespaceStore';
 import ApplicationCard from '@/components/ApplicationCard';
 import DeployModal from '@/components/DeployModal';
 import LogsDrawer from '@/components/LogsDrawer';
 import TerminalDrawer from '@/components/TerminalDrawer';
-import { ApplicationDeployment, DeployCommand } from '@/lib/api';
+import ConfirmDialog from '@/components/ConfirmDialog';
+import { ApplicationDeployment, DeployCommand, Pod } from '@/lib/api';
 import { Plus, RefreshCw, FolderTree, AlertCircle } from 'lucide-react';
 
 export default function Dashboard() {
   const { namespace, deployments, loading, error, setNamespace, fetchDeployments, deploy, scale, updateImage, deleteDeployment, start, stop, restart, rollback } = useAppStore();
+  const { namespaces, fetchNamespaces } = useNamespaceStore();
 
   const [isDeployModalOpen, setDeployModalOpen] = useState(false);
-  const [logsApp, setLogsApp] = useState<ApplicationDeployment | null>(null);
-  const [terminalApp, setTerminalApp] = useState<ApplicationDeployment | null>(null);
+  const [logsPod, setLogsPod] = useState<Pod | null>(null);
+  const [terminalPod, setTerminalPod] = useState<Pod | null>(null);
+  const [confirmAction, setConfirmAction] = useState<{
+    type: 'delete' | 'stop' | 'restart' | 'rollback';
+    app: ApplicationDeployment;
+  } | null>(null);
+
+  useEffect(() => {
+    fetchNamespaces();
+  }, [fetchNamespaces]);
 
   useEffect(() => {
     fetchDeployments();
-  }, [fetchDeployments]);
+  }, [fetchDeployments, namespace]);
 
   const handleScale = async (app: ApplicationDeployment) => {
     const reps = window.prompt(`Enter new replicas for ${app.name}`, app.replicas.toString());
@@ -36,9 +47,7 @@ export default function Dashboard() {
   };
 
   const handleDelete = async (app: ApplicationDeployment) => {
-    if (window.confirm(`Are you sure you want to delete application '${app.name}'?`)) {
-      await deleteDeployment(app.name);
-    }
+    setConfirmAction({ type: 'delete', app });
   };
 
   const handleDeploy = async (command: DeployCommand) => {
@@ -50,20 +59,27 @@ export default function Dashboard() {
   };
 
   const handleStop = async (app: ApplicationDeployment) => {
-    if (window.confirm(`Are you sure you want to stop application '${app.name}'?`)) {
-      await stop(app.name);
-    }
+    setConfirmAction({ type: 'stop', app });
   };
 
   const handleRestart = async (app: ApplicationDeployment) => {
-    if (window.confirm(`Are you sure you want to restart application '${app.name}'?`)) {
-      await restart(app.name);
-    }
+    setConfirmAction({ type: 'restart', app });
   };
 
   const handleRollback = async (app: ApplicationDeployment) => {
-    if (window.confirm(`Are you sure you want to rollback application '${app.name}' to its previous version?`)) {
-      await rollback(app.name);
+    setConfirmAction({ type: 'rollback', app });
+  };
+
+  const executeConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { type, app } = confirmAction;
+    try {
+      if (type === 'delete') await deleteDeployment(app.name);
+      if (type === 'stop') await stop(app.name);
+      if (type === 'restart') await restart(app.name);
+      if (type === 'rollback') await rollback(app.name);
+    } catch (err: any) {
+      alert(err.message || `Failed to ${type} application`);
     }
   };
 
@@ -80,9 +96,17 @@ export default function Dashboard() {
               onChange={(e) => setNamespace(e.target.value)}
               className="bg-transparent border-none text-sm font-bold text-blue-600 dark:text-blue-400 outline-none cursor-pointer"
             >
-              <option value="default">default</option>
-              <option value="kube-system">kube-system</option>
-              <option value="monitoring">monitoring</option>
+              {namespaces.length > 0 ? (
+                namespaces.map(ns => (
+                  <option key={ns.name} value={ns.name}>{ns.name}</option>
+                ))
+              ) : (
+                <>
+                  <option value="default">default</option>
+                  <option value="kube-system">kube-system</option>
+                  <option value="monitoring">monitoring</option>
+                </>
+              )}
             </select>
           </div>
           <button
@@ -148,8 +172,8 @@ export default function Dashboard() {
               onScale={handleScale}
               onUpdateImage={handleUpdateImage}
               onDelete={handleDelete}
-              onViewLogs={setLogsApp}
-              onOpenTerminal={setTerminalApp}
+              onViewLogs={setLogsPod}
+              onOpenTerminal={setTerminalPod}
               onStart={handleStart}
               onStop={handleStop}
               onRestart={handleRestart}
@@ -166,12 +190,21 @@ export default function Dashboard() {
         onDeploy={handleDeploy}
       />
       <LogsDrawer
-        app={logsApp}
-        onClose={() => setLogsApp(null)}
+        pod={logsPod}
+        onClose={() => setLogsPod(null)}
       />
       <TerminalDrawer
-        app={terminalApp}
-        onClose={() => setTerminalApp(null)}
+        pod={terminalPod}
+        onClose={() => setTerminalPod(null)}
+      />
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction ? `${confirmAction.type.charAt(0).toUpperCase() + confirmAction.type.slice(1)} Application` : ''}
+        message={confirmAction ? `Are you sure you want to ${confirmAction.type} application '${confirmAction.app.name}'?` : ''}
+        onConfirm={executeConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+        confirmText={confirmAction ? confirmAction.type.charAt(0).toUpperCase() + confirmAction.type.slice(1) : 'Confirm'}
+        isDestructive={confirmAction?.type === 'delete' || confirmAction?.type === 'stop'}
       />
     </div>
   );

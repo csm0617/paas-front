@@ -1,22 +1,22 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ApplicationDeployment, api } from '@/lib/api';
+import { podApi, Pod } from '@/lib/api';
 import { X, Terminal as TerminalIcon } from 'lucide-react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
 import '@xterm/xterm/css/xterm.css';
 
 interface Props {
-  app: ApplicationDeployment | null;
+  pod: Pod | null;
   onClose: () => void;
 }
 
-export default function TerminalDrawer({ app, onClose }: Props) {
+export default function TerminalDrawer({ pod, onClose }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null);
   const [connected, setConnected] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
-    if (!app || !terminalRef.current) return;
+    if (!pod || !terminalRef.current) return;
 
     const term = new Terminal({
       theme: {
@@ -35,7 +35,7 @@ export default function TerminalDrawer({ app, onClose }: Props) {
     term.open(terminalRef.current);
     fitAddon.fit();
 
-    api.getTerminalUrl(app.namespace, app.name, `${app.name}-pod`).then((url) => {
+    podApi.getTerminalUrl(pod.namespace, pod.name).then((url) => {
       const ws = new WebSocket(url);
       wsRef.current = ws;
 
@@ -75,21 +75,22 @@ export default function TerminalDrawer({ app, onClose }: Props) {
       wsRef.current?.close();
       term.dispose();
     };
-  }, [app]);
+  }, [pod]);
 
-  if (!app) return null;
+  if (!pod) return null;
 
   return (
     <>
-      <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm transition-opacity" onClick={onClose} />
-      <div className="fixed inset-y-0 right-0 z-50 w-full max-w-4xl bg-slate-900 shadow-2xl flex flex-col border-l border-slate-700 transform transition-transform duration-300">
-        <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between text-slate-100 bg-slate-950">
+      <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm transition-opacity" onClick={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 pointer-events-none">
+        <div className="w-full max-w-5xl h-[85vh] bg-slate-900 shadow-2xl flex flex-col border border-slate-700 rounded-xl overflow-hidden transform transition-all pointer-events-auto">
+          <div className="px-6 py-4 border-b border-slate-800 flex items-center justify-between text-slate-100 bg-slate-950">
           <div className="flex items-center space-x-3">
             <TerminalIcon className="text-blue-400" size={24} />
             <div>
               <h2 className="text-lg font-bold font-mono">Web Terminal</h2>
               <p className="text-xs text-slate-400 mt-1 flex items-center space-x-2">
-                <span>{app.namespace} / {app.name}</span>
+                <span>{pod.namespace} / {pod.name}</span>
                 <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
                 <span>{connected ? 'Connected' : 'Disconnected'}</span>
               </p>
@@ -103,6 +104,7 @@ export default function TerminalDrawer({ app, onClose }: Props) {
           <div ref={terminalRef} className="w-full h-full" />
         </div>
       </div>
+    </div>
     </>
   );
 }
