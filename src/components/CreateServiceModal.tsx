@@ -1,0 +1,271 @@
+import React, { useState } from 'react';
+import { CreateServiceCommand, ServicePort } from '@/lib/api';
+import { useNetworkStore } from '@/store/networkStore';
+import { X, Plus, Trash2 } from 'lucide-react';
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  namespace: string;
+}
+
+export default function CreateServiceModal({ isOpen, onClose, namespace }: Props) {
+  const [loading, setLoading] = useState(false);
+  const { fetchServices } = useNetworkStore();
+  const [formData, setFormData] = useState<{
+    name: string;
+    type: string;
+  }>({
+    name: '',
+    type: 'ClusterIP',
+  });
+
+  const [ports, setPorts] = useState<ServicePort[]>([
+    { name: 'http', port: 80, targetPort: 80, protocol: 'TCP' }
+  ]);
+
+  const [selectors, setSelectors] = useState<{ key: string; value: string }[]>([
+    { key: 'app', value: '' }
+  ]);
+
+  if (!isOpen) return null;
+
+  const handlePortChange = (index: number, field: keyof ServicePort, val: any) => {
+    const newPorts = [...ports];
+    newPorts[index] = { ...newPorts[index], [field]: val };
+    setPorts(newPorts);
+  };
+
+  const addPort = () => {
+    setPorts([...ports, { name: '', port: 80, targetPort: 80, protocol: 'TCP' }]);
+  };
+
+  const removePort = (index: number) => {
+    const newPorts = [...ports];
+    newPorts.splice(index, 1);
+    setPorts(newPorts);
+  };
+
+  const handleSelectorChange = (index: number, field: 'key' | 'value', val: string) => {
+    const newSelectors = [...selectors];
+    newSelectors[index][field] = val;
+    setSelectors(newSelectors);
+  };
+
+  const addSelector = () => {
+    setSelectors([...selectors, { key: '', value: '' }]);
+  };
+
+  const removeSelector = (index: number) => {
+    const newSelectors = [...selectors];
+    newSelectors.splice(index, 1);
+    setSelectors(newSelectors);
+  };
+
+  const toMap = (list: { key: string; value: string }[]) => {
+    return list.reduce((acc, curr) => {
+      if (curr.key) acc[curr.key] = curr.value;
+      return acc;
+    }, {} as Record<string, string>);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const command: CreateServiceCommand = {
+        name: formData.name,
+        type: formData.type,
+        ports: ports,
+        selector: toMap(selectors),
+      };
+      
+      const { networkApi } = await import('@/lib/api');
+      await networkApi.createService(namespace, command);
+      await fetchServices(namespace);
+      onClose();
+    } catch (err: any) {
+      alert(err.message || 'Failed to create service.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-slate-200 dark:border-slate-700 animate-in fade-in zoom-in duration-200">
+        <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between bg-slate-50 dark:bg-slate-900/50">
+          <h2 className="text-xl font-semibold text-slate-800 dark:text-slate-100">Create Service</h2>
+          <button onClick={onClose} className="p-2 text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors">
+            <X size={20} />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-6">
+          <form id="create-service-form" onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Service Name</label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. my-service"
+                  className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Type</label>
+                <select
+                  required
+                  className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none cursor-pointer"
+                  value={formData.type}
+                  onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+                >
+                  <option value="ClusterIP">ClusterIP</option>
+                  <option value="NodePort">NodePort</option>
+                  <option value="LoadBalancer">LoadBalancer</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Ports</label>
+                <button
+                  type="button"
+                  onClick={addPort}
+                  className="text-sm flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Plus size={16} />
+                  <span>Add Port</span>
+                </button>
+              </div>
+              <div className="space-y-3">
+                {ports.length === 0 && (
+                  <div className="text-sm text-slate-400 italic text-center py-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
+                    No ports configured.
+                  </div>
+                )}
+                {ports.map((port, i) => (
+                  <div key={i} className="flex items-center space-x-3 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex-1 grid grid-cols-2 gap-3">
+                      <input
+                        type="text"
+                        placeholder="Name (e.g. http)"
+                        className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
+                        value={port.name || ''}
+                        onChange={(e) => handlePortChange(i, 'name', e.target.value)}
+                      />
+                      <select
+                        className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
+                        value={port.protocol || 'TCP'}
+                        onChange={(e) => handlePortChange(i, 'protocol', e.target.value)}
+                      >
+                        <option value="TCP">TCP</option>
+                        <option value="UDP">UDP</option>
+                      </select>
+                      <input
+                        type="number"
+                        required
+                        placeholder="Port"
+                        className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
+                        value={port.port}
+                        onChange={(e) => handlePortChange(i, 'port', Number(e.target.value))}
+                      />
+                      <input
+                        type="number"
+                        required
+                        placeholder="Target Port"
+                        className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
+                        value={port.targetPort}
+                        onChange={(e) => handlePortChange(i, 'targetPort', Number(e.target.value))}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removePort(i)}
+                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors self-start mt-1"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between mb-4">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">Selectors</label>
+                <button
+                  type="button"
+                  onClick={addSelector}
+                  className="text-sm flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium"
+                >
+                  <Plus size={16} />
+                  <span>Add Selector</span>
+                </button>
+              </div>
+              <div className="space-y-3">
+                {selectors.length === 0 && (
+                  <div className="text-sm text-slate-400 italic text-center py-4 bg-slate-50 dark:bg-slate-900 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
+                    No selectors configured. Service will not route to any pods.
+                  </div>
+                )}
+                {selectors.map((sel, i) => (
+                  <div key={i} className="flex items-center space-x-3">
+                    <input
+                      type="text"
+                      placeholder="KEY (e.g. app)"
+                      required
+                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm outline-none"
+                      value={sel.key}
+                      onChange={(e) => handleSelectorChange(i, 'key', e.target.value)}
+                    />
+                    <span className="text-slate-400">=</span>
+                    <input
+                      type="text"
+                      placeholder="VALUE (e.g. my-app)"
+                      required
+                      className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm outline-none"
+                      value={sel.value}
+                      onChange={(e) => handleSelectorChange(i, 'value', e.target.value)}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeSelector(i)}
+                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+          </form>
+        </div>
+
+        <div className="px-6 py-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex justify-end space-x-3">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="create-service-form"
+            disabled={loading}
+            className="px-5 py-2.5 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed rounded-xl shadow-sm transition-all"
+          >
+            {loading ? 'Creating...' : 'Create Service'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

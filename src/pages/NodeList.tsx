@@ -1,0 +1,194 @@
+import React, { useEffect, useState } from 'react';
+import { useNodeStore } from '@/store/nodeStore';
+import { RefreshCw, Server, ShieldAlert, ShieldCheck, AlertCircle } from 'lucide-react';
+import ConfirmDialog from '@/components/ConfirmDialog';
+
+export default function NodeList() {
+  const { nodes, loading, error, fetchNodes, cordonNode, uncordonNode } = useNodeStore();
+  const [confirmAction, setConfirmAction] = useState<{ type: 'cordon' | 'uncordon'; nodeName: string } | null>(null);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  useEffect(() => {
+    fetchNodes();
+  }, [fetchNodes]);
+
+  const handleActionClick = (type: 'cordon' | 'uncordon', nodeName: string) => {
+    setConfirmAction({ type, nodeName });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    setActionLoading(true);
+    try {
+      if (confirmAction.type === 'cordon') {
+        await cordonNode(confirmAction.nodeName);
+      } else {
+        await uncordonNode(confirmAction.nodeName);
+      }
+    } catch (err: any) {
+      alert(err.message || `Failed to ${confirmAction.type} node`);
+    } finally {
+      setActionLoading(false);
+      setConfirmAction(null);
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col space-y-6">
+      {/* Top Action Bar */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 gap-4">
+        <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+            <Server size={18} className="text-slate-500" />
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Nodes</span>
+          </div>
+          <button
+            onClick={() => fetchNodes()}
+            disabled={loading || actionLoading}
+            className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50"
+            title="Refresh"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+          </button>
+        </div>
+      </div>
+
+      {error && (
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-600 dark:text-red-400 p-4 rounded-xl flex items-center space-x-3">
+          <AlertCircle size={20} />
+          <span className="font-medium">{error}</span>
+        </div>
+      )}
+
+      {/* Nodes Table */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex-1">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm text-slate-600 dark:text-slate-400">
+            <thead className="text-xs text-slate-500 uppercase bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-700">
+              <tr>
+                <th className="px-6 py-4 font-medium">Name</th>
+                <th className="px-6 py-4 font-medium">Status</th>
+                <th className="px-6 py-4 font-medium">Roles</th>
+                <th className="px-6 py-4 font-medium">Version</th>
+                <th className="px-6 py-4 font-medium">IPs (Int/Ext)</th>
+                <th className="px-6 py-4 font-medium">CPU (Alloc/Cap)</th>
+                <th className="px-6 py-4 font-medium">Memory (Alloc/Cap)</th>
+                <th className="px-6 py-4 font-medium text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loading && (!nodes || nodes.length === 0) ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center">
+                    <div className="flex flex-col items-center justify-center space-y-3 text-slate-400">
+                      <RefreshCw size={24} className="animate-spin text-blue-500" />
+                      <span>Loading nodes...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : (!nodes || nodes.length === 0) ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-slate-500 dark:text-slate-400">
+                    No nodes found.
+                  </td>
+                </tr>
+              ) : (
+                nodes.map((node) => (
+                  <tr key={node.name} className="border-b border-slate-100 dark:border-slate-700/50 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                    <td className="px-6 py-4 font-medium text-slate-800 dark:text-slate-200">
+                      <div className="flex flex-col">
+                        <span className="flex items-center space-x-2">
+                          <Server size={16} className="text-blue-500" />
+                          <span 
+                            title={`Labels: ${JSON.stringify(node.labels)}\nTaints: ${JSON.stringify(node.taints)}`}
+                            className="cursor-help"
+                          >
+                            {node.name}
+                          </span>
+                        </span>
+                        <span className="text-xs text-slate-400 mt-1">{node.osImage}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col space-y-1">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium w-fit ${
+                          node.status === 'Ready' 
+                            ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400'
+                            : 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400'
+                        }`}>
+                          {node.status}
+                        </span>
+                        {node.unschedulable && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium w-fit bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400">
+                            SchedulingDisabled
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-wrap gap-1">
+                        {node.roles && node.roles.length > 0 ? (
+                          node.roles.map(role => (
+                            <span key={role} className="px-2 py-0.5 text-[10px] font-semibold bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-full border border-blue-200 dark:border-blue-800">
+                              {role}
+                            </span>
+                          ))
+                        ) : (
+                          <span className="text-slate-400 text-xs">worker</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-xs">{node.kubeletVersion}</td>
+                    <td className="px-6 py-4 text-xs flex flex-col space-y-1">
+                      <span>{node.internalIp || '-'}</span>
+                      <span className="text-slate-400">{node.externalIp || '-'}</span>
+                    </td>
+                    <td className="px-6 py-4 text-xs">
+                      {node.cpuAllocatable} / {node.cpuCapacity}
+                    </td>
+                    <td className="px-6 py-4 text-xs">
+                      {node.memoryAllocatable} / {node.memoryCapacity}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      {!node.unschedulable ? (
+                        <button
+                          onClick={() => handleActionClick('cordon', node.name)}
+                          className="p-2 rounded-lg text-yellow-600 hover:bg-yellow-50 dark:hover:bg-yellow-900/20 transition-colors"
+                          title="Cordon (Disable Scheduling)"
+                        >
+                          <ShieldAlert size={18} />
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleActionClick('uncordon', node.name)}
+                          className="p-2 rounded-lg text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 transition-colors"
+                          title="Uncordon (Enable Scheduling)"
+                        >
+                          <ShieldCheck size={18} />
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={!!confirmAction}
+        title={confirmAction?.type === 'cordon' ? 'Cordon Node' : 'Uncordon Node'}
+        message={
+          confirmAction?.type === 'cordon'
+            ? `Are you sure you want to cordon node '${confirmAction?.nodeName}'? New pods will not be scheduled on this node.`
+            : `Are you sure you want to uncordon node '${confirmAction?.nodeName}'? New pods will be allowed to schedule on this node.`
+        }
+        onConfirm={handleConfirmAction}
+        onCancel={() => setConfirmAction(null)}
+        confirmText={confirmAction?.type === 'cordon' ? 'Cordon' : 'Uncordon'}
+        isDestructive={confirmAction?.type === 'cordon'}
+      />
+    </div>
+  );
+}

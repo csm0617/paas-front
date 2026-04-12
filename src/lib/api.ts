@@ -83,6 +83,45 @@ export interface Result<T> {
   data: T;
 }
 
+export interface K8sTaint {
+  key: string;
+  value: string;
+  effect: string;
+}
+
+export interface K8sNode {
+  name: string;
+  status: string;
+  roles: string[];
+  kubeletVersion: string;
+  osImage: string;
+  internalIp: string;
+  externalIp: string;
+  cpuCapacity: string;
+  memoryCapacity: string;
+  podCapacity: string;
+  cpuAllocatable: string;
+  memoryAllocatable: string;
+  podAllocatable: string;
+  labels: Record<string, string>;
+  taints: K8sTaint[];
+  unschedulable: boolean;
+}
+
+export const nodeApi = {
+  list: async (): Promise<K8sNode[]> => {
+    const res = await apiClient.get<Result<K8sNode[]>>(`/nodes`);
+    return res.data.data;
+  },
+  cordon: async (name: string): Promise<void> => {
+    await apiClient.post(`/nodes/${name}/cordon`);
+  },
+  uncordon: async (name: string): Promise<void> => {
+    await apiClient.post(`/nodes/${name}/uncordon`);
+  }
+};
+
+
 export const namespaceApi = {
   list: async (): Promise<Namespace[]> => {
     const res = await apiClient.get<Result<Namespace[]>>(`/namespaces/`);
@@ -191,4 +230,83 @@ export const api = {
     });
     return res.data.data;
   },
+};
+
+export interface ServicePort {
+  name?: string;
+  port: number;
+  targetPort?: number;
+  nodePort?: number;
+  protocol?: string;
+}
+
+export interface K8sService {
+  name: string;
+  namespace: string;
+  type: string;
+  clusterIP: string;
+  externalIPs?: string[];
+  ports: ServicePort[];
+  selector?: Record<string, string>;
+}
+
+export interface K8sIngress {
+  name: string;
+  namespace: string;
+  hosts: string[];
+  paths: string[];
+  loadBalancerIPs?: string[];
+}
+
+export interface CreateServiceCommand {
+  name: string;
+  type: string;
+  ports: ServicePort[];
+  selector: Record<string, string>;
+}
+
+export interface IngressRuleDto {
+  host: string;
+  path: string;
+  pathType: string;
+  serviceName: string;
+  servicePort: number;
+}
+
+export interface CreateIngressCommand {
+  name: string;
+  rules: IngressRuleDto[];
+}
+
+export const networkApi = {
+  listServices: async (namespace: string): Promise<K8sService[]> => {
+    const res = await apiClient.get<Result<K8sService[]>>(`/namespaces/${namespace}/services`);
+    return res.data.data;
+  },
+  getService: async (namespace: string, name: string): Promise<K8sService> => {
+    const res = await apiClient.get<Result<K8sService>>(`/namespaces/${namespace}/services/${name}`);
+    return res.data.data;
+  },
+  createService: async (namespace: string, command: CreateServiceCommand): Promise<K8sService> => {
+    const res = await apiClient.post<Result<K8sService>>(`/namespaces/${namespace}/services`, command);
+    return res.data.data;
+  },
+  deleteService: async (namespace: string, name: string): Promise<void> => {
+    await apiClient.delete(`/namespaces/${namespace}/services/${name}`);
+  },
+  listIngresses: async (namespace: string): Promise<K8sIngress[]> => {
+    const res = await apiClient.get<Result<K8sIngress[]>>(`/namespaces/${namespace}/ingresses`);
+    return res.data.data;
+  },
+  getIngress: async (namespace: string, name: string): Promise<K8sIngress> => {
+    const res = await apiClient.get<Result<K8sIngress>>(`/namespaces/${namespace}/ingresses/${name}`);
+    return res.data.data;
+  },
+  createIngress: async (namespace: string, command: CreateIngressCommand): Promise<K8sIngress> => {
+    const res = await apiClient.post<Result<K8sIngress>>(`/namespaces/${namespace}/ingresses`, command);
+    return res.data.data;
+  },
+  deleteIngress: async (namespace: string, name: string): Promise<void> => {
+    await apiClient.delete(`/namespaces/${namespace}/ingresses/${name}`);
+  }
 };
