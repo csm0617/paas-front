@@ -1,5 +1,5 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { useConfigMapStore } from '@/store/configMapStore';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -11,8 +11,7 @@ import { useToast } from '@/components/Toast';
 
 export default function ConfigMapList() {
   const { currentNamespace, setCurrentNamespace, namespaces, fetchNamespaces } = useNamespaceStore();
-  const { configMaps, listLoading, error, fetchConfigMaps, deleteConfigMap, createConfigMap, updateConfigMap } = useConfigMapStore();
-  const toast = useToast();
+  const { configMaps, loading, error, fetchConfigMaps, deleteConfigMap, createConfigMap, updateConfigMap } = useConfigMapStore();
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingConfigMap, setEditingConfigMap] = useState<K8sConfigMap | null>(null);
@@ -23,7 +22,7 @@ export default function ConfigMapList() {
   }, [fetchNamespaces]);
 
   useEffect(() => {
-    fetchConfigMaps(currentNamespace);
+    fetchConfigMaps();
   }, [fetchConfigMaps, currentNamespace]);
 
   const handleDeleteClick = (configMap: K8sConfigMap) => {
@@ -35,7 +34,7 @@ export default function ConfigMapList() {
     try {
       await deleteConfigMap(confirmDelete.name);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '删除配置组失败');
+      alert(getErrorMessage(err) || '删除配置组失败');
     }
   };
 
@@ -69,12 +68,12 @@ export default function ConfigMapList() {
             onChange={setCurrentNamespace}
           />
           <button
-            onClick={() => fetchConfigMaps(currentNamespace)}
-            disabled={listLoading}
+            onClick={() => fetchConfigMaps()}
+            disabled={loading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="刷新"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
         <button
@@ -106,7 +105,7 @@ export default function ConfigMapList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {listLoading && configMaps.length === 0 ? (
+              {loading && configMaps.length === 0 ? (
                 <tr>
                   <td colSpan={4} className="p-8 text-center text-slate-500">
                     <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />

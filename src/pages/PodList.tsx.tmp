@@ -1,5 +1,5 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { usePodStore } from '@/store/podStore';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import LogsDrawer from '@/components/LogsDrawer';
@@ -12,9 +12,8 @@ import { useToast } from '@/components/Toast';
 
 export default function PodList() {
   const [namespace, setNamespace] = useState<string>('default');
-  const { pods, listLoading, error, fetchPods, deletePod } = usePodStore();
+  const { pods, loading, error, fetchPods, deletePod } = usePodStore();
   const { namespaces, fetchNamespaces } = useNamespaceStore();
-  const toast = useToast();
 
   const [logsPod, setLogsPod] = useState<Pod | null>(null);
   const [terminalPod, setTerminalPod] = useState<Pod | null>(null);
@@ -37,7 +36,7 @@ export default function PodList() {
     try {
       await deletePod(confirmDeletePod.namespace, confirmDeletePod.name);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '删除容器组失败');
+      alert(getErrorMessage(err) || '删除容器组失败');
     }
   };
 
@@ -53,11 +52,11 @@ export default function PodList() {
           />
           <button
             onClick={() => fetchPods(namespace)}
-            disabled={listLoading}
+            disabled={loading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="刷新"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
       </div>
@@ -85,7 +84,7 @@ export default function PodList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {listLoading && pods.length === 0 ? (
+              {loading && pods.length === 0 ? (
                 <tr>
                   <td colSpan={7} className="p-8 text-center text-slate-500">
                     <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />

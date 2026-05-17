@@ -1,8 +1,7 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { X, RefreshCw, Copy, Check } from 'lucide-react';
-import { Application } from '@/lib/types';
-import { applicationApi } from '@/lib/api';
+import { Application, api } from '@/lib/api';
 
 interface Props {
   app: Application | null;
@@ -26,11 +25,11 @@ export default function YamlModal({ app, serviceName, workloadName, onClose }: P
       try {
         let data;
         if (serviceName && workloadName) {
-          data = await applicationApi.getWorkloadYaml(app.namespace, app.name, serviceName, workloadName);
+          data = await api.getWorkloadYaml(app.namespace, app.name, serviceName, workloadName);
         } else if (serviceName) {
-          data = await applicationApi.getServiceYaml(app.namespace, app.name, serviceName);
+          data = await api.getServiceYaml(app.namespace, app.name, serviceName);
         } else {
-          data = await applicationApi.getYaml(app.namespace, app.name);
+          data = await api.getYaml(app.namespace, app.name);
         }
         setYaml(data);
       } catch (err: unknown) {

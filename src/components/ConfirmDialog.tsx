@@ -16,8 +16,8 @@ export default function ConfirmDialog({
   isOpen,
   title,
   message,
-  confirmText = 'Confirm',
-  cancelText = 'Cancel',
+  confirmText = '确认',
+  cancelText = '取消',
   isDestructive = true,
   onConfirm,
   onCancel,
@@ -58,8 +58,8 @@ export default function ConfirmDialog({
               onCancel();
             }}
             className={`px-5 py-2.5 text-sm font-medium text-white rounded-xl shadow-sm transition-all ${
-              isDestructive 
-                ? 'bg-red-600 hover:bg-red-700' 
+              isDestructive
+                ? 'bg-red-600 hover:bg-red-700'
                 : 'bg-blue-600 hover:bg-blue-700'
             }`}
           >

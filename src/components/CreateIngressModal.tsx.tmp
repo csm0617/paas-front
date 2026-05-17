@@ -1,9 +1,8 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useState } from 'react';
-import { CreateIngressCommand, IngressRuleDto } from '@/lib/types';
+import { getErrorMessage } from '@/lib/utils';
+import { CreateIngressCommand, IngressRuleDto } from '@/lib/api';
 import { useNetworkStore } from '@/store/networkStore';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { useToast } from '@/components/Toast';
 
 interface Props {
   isOpen: boolean;
@@ -14,7 +13,6 @@ interface Props {
 export default function CreateIngressModal({ isOpen, onClose, namespace }: Props) {
   const [loading, setLoading] = useState(false);
   const { fetchIngresses } = useNetworkStore();
-  const toast = useToast();
   const [name, setName] = useState('');
 
   const [rules, setRules] = useState<IngressRuleDto[]>([
@@ -53,7 +51,7 @@ export default function CreateIngressModal({ isOpen, onClose, namespace }: Props
       await fetchIngresses(namespace);
       onClose();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '创建入口失败');
+      alert(getErrorMessage(err) || '创建入口失败');
       console.error(err);
     } finally {
       setLoading(false);

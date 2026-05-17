@@ -10,13 +10,15 @@ import YamlModal from '@/components/YamlModal';
 import EventsModal from '@/components/EventsModal';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import InputDialog from '@/components/InputDialog';
-import { Application, DeployCommand, Pod, podApi } from '@/lib/api';
-import { Plus, RefreshCw, FolderTree, AlertCircle, LayoutGrid, List } from 'lucide-react';
+import NamespaceSelector from '@/components/NamespaceSelector';
+import { podApi } from '@/lib/api';
+import type { Application, DeployCommand, Pod } from '@/lib/types';
+import { Plus, RefreshCw, AlertCircle, LayoutGrid, List, FolderTree } from 'lucide-react';
 import { useK8sWatch } from '@/hooks/useK8sWatch';
 
 export default function Dashboard() {
-  const { namespace, deployments, loading, error, setNamespace, fetchDeployments, deploy, scale, updateImage, deleteDeployment, start, stop, restart, rollback } = useAppStore();
-  const { namespaces, fetchNamespaces } = useNamespaceStore();
+  const { deployments, listLoading, error, fetchDeployments, deploy, scale, updateImage, deleteDeployment, start, stop, restart, rollback } = useAppStore();
+  const { namespaces, currentNamespace, setCurrentNamespace, fetchNamespaces } = useNamespaceStore();
 
   const [isDeployModalOpen, setDeployModalOpen] = useState(false);
   const [editServiceApp, setEditServiceApp] = useState<{ app: Application; serviceName: string } | null>(null);
@@ -46,12 +48,12 @@ export default function Dashboard() {
   }, [fetchNamespaces]);
 
   useEffect(() => {
-    fetchDeployments();
-  }, [fetchDeployments, namespace]);
+    fetchDeployments(currentNamespace);
+  }, [fetchDeployments, currentNamespace]);
 
-  useK8sWatch(namespace, (event) => {
+  useK8sWatch(currentNamespace, (event) => {
     if (event.type === 'deployment') {
-      fetchDeployments();
+      fetchDeployments(currentNamespace);
     }
   });
 
@@ -67,16 +69,16 @@ export default function Dashboard() {
     if (!inputAction) return;
     try {
       if (inputAction.type === 'scale' && inputAction.workloadName) {
-        const n = parseInt(value, 10);
-        if (!isNaN(n) && n >= 0) {
-          await scale(inputAction.app.name, inputAction.serviceName, inputAction.workloadName, n);
+          const n = parseInt(value, 10);
+          if (!isNaN(n) && n >= 0) {
+            await scale(currentNamespace, inputAction.app.name, inputAction.serviceName, inputAction.workloadName, n);
+          }
+        } else if (inputAction.type === 'image' && inputAction.workloadName) {
+          if (value.trim()) {
+            await updateImage(currentNamespace, inputAction.app.name, inputAction.serviceName, inputAction.workloadName, value.trim());
+          }
         }
-      } else if (inputAction.type === 'image' && inputAction.workloadName) {
-        if (value.trim()) {
-          await updateImage(inputAction.app.name, inputAction.serviceName, inputAction.workloadName, value.trim());
-        }
-      }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`Failed to update ${inputAction.type}:`, err);
     } finally {
       setInputAction(null);
@@ -88,11 +90,11 @@ export default function Dashboard() {
   };
 
   const handleDeploy = async (command: DeployCommand) => {
-    await deploy(command);
+    await deploy(currentNamespace, command);
   };
 
   const handleStart = async (app: Application) => {
-    await start(app.name);
+    await start(currentNamespace, app.name);
   };
 
   const handleStop = async (app: Application) => {
@@ -119,14 +121,14 @@ export default function Dashboard() {
     if (!confirmAction) return;
     const { type, app, serviceName, workloadName, pod } = confirmAction;
     try {
-      if (type === 'delete' && app) await deleteDeployment(app.name);
-      if (type === 'stop' && app) await stop(app.name);
-      if (type === 'restart' && app && serviceName && workloadName) await restart(app.name, serviceName, workloadName);
-      if (type === 'rollback' && app && serviceName && workloadName) await rollback(app.name, serviceName, workloadName);
+      if (type === 'delete' && app) await deleteDeployment(currentNamespace, app.name);
+      if (type === 'stop' && app) await stop(currentNamespace, app.name);
+      if (type === 'restart' && app && serviceName && workloadName) await restart(currentNamespace, app.name, serviceName, workloadName);
+      if (type === 'rollback' && app && serviceName && workloadName) await rollback(currentNamespace, app.name, serviceName, workloadName);
       if (type === 'deletePod' && pod) {
         await podApi.delete(pod.namespace, pod.name);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(`Failed to ${type}:`, err);
       // Removed the alert() hard popup as requested
     } finally {
@@ -139,34 +141,18 @@ export default function Dashboard() {
       {/* Top Action Bar */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-            <FolderTree size={18} className="text-slate-500" />
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Namespace</span>
-            <select
-              value={namespace}
-              onChange={(e) => setNamespace(e.target.value)}
-              className="bg-transparent border-none text-sm font-bold text-blue-600 dark:text-blue-400 outline-none cursor-pointer"
-            >
-              {namespaces.length > 0 ? (
-                namespaces.map(ns => (
-                  <option key={ns.name} value={ns.name}>{ns.name}</option>
-                ))
-              ) : (
-                <>
-                  <option value="default">default</option>
-                  <option value="kube-system">kube-system</option>
-                  <option value="monitoring">monitoring</option>
-                </>
-              )}
-            </select>
-          </div>
+          <NamespaceSelector
+            currentNamespace={currentNamespace}
+            namespaces={namespaces}
+            onChange={setCurrentNamespace}
+          />
           <button
-            onClick={() => fetchDeployments()}
-            disabled={loading}
+            onClick={() => fetchDeployments(currentNamespace)}
+            disabled={listLoading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
           </button>
           
           <div className="hidden sm:flex items-center bg-slate-100 dark:bg-slate-900 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
@@ -204,7 +190,7 @@ export default function Dashboard() {
       )}
 
       {/* Main Grid */}
-      {loading && deployments.length === 0 ? (
+      {listLoading && deployments.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="flex flex-col items-center space-y-4 text-slate-400">
             <RefreshCw size={32} className="animate-spin text-blue-500" />
@@ -219,7 +205,7 @@ export default function Dashboard() {
             </div>
             <h3 className="text-xl font-bold text-slate-800 dark:text-slate-200">No applications found</h3>
             <p className="text-slate-500 dark:text-slate-400 text-sm">
-              There are no applications in the <span className="font-mono text-blue-500">{namespace}</span> namespace.
+              There are no applications in the <span className="font-mono text-blue-500">{currentNamespace}</span> namespace.
               Click "New Application" to create one.
             </p>
             <button

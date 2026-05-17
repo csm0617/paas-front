@@ -2,7 +2,12 @@ import { useEffect, useRef } from 'react';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080/api/v1';
 
-export function useK8sWatch(namespace: string, onEvent: (data: any) => void) {
+interface WatchEvent {
+  type: string;
+  [key: string]: unknown;
+}
+
+export function useK8sWatch(namespace: string, onEvent: (data: WatchEvent) => void) {
   const onEventRef = useRef(onEvent);
 
   useEffect(() => {

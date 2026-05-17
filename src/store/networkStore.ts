@@ -1,10 +1,11 @@
+import { getErrorMessage } from '@/lib/utils';
 import { create } from 'zustand';
 import { networkApi, K8sService, K8sIngress } from '@/lib/api';
 
 interface NetworkState {
   services: K8sService[];
   ingresses: K8sIngress[];
-  loading: boolean;
+  listLoading: boolean;
   error: string | null;
   fetchServices: (namespace: string) => Promise<void>;
   deleteService: (namespace: string, name: string) => Promise<void>;
@@ -15,52 +16,52 @@ interface NetworkState {
 export const useNetworkStore = create<NetworkState>((set) => ({
   services: [],
   ingresses: [],
-  loading: false,
+  listLoading: false,
   error: null,
   
   fetchServices: async (namespace) => {
-    set({ loading: true, error: null });
+    set({ listLoading: true, error: null });
     try {
       const services = await networkApi.listServices(namespace);
-      set({ services, loading: false });
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch services', loading: false });
+      set({ services, listLoading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Failed to fetch services', listLoading: false });
     }
   },
   
   deleteService: async (namespace, name) => {
-    set({ loading: true, error: null });
+    set({ listLoading: true, error: null });
     try {
       await networkApi.deleteService(namespace, name);
       set((state) => ({
         services: state.services.filter((s) => s.name !== name),
-        loading: false,
+        listLoading: false,
       }));
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to delete service', loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Failed to delete service', listLoading: false });
     }
   },
 
   fetchIngresses: async (namespace) => {
-    set({ loading: true, error: null });
+    set({ listLoading: true, error: null });
     try {
       const ingresses = await networkApi.listIngresses(namespace);
-      set({ ingresses, loading: false });
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to fetch ingresses', loading: false });
+      set({ ingresses, listLoading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Failed to fetch ingresses', listLoading: false });
     }
   },
   
   deleteIngress: async (namespace, name) => {
-    set({ loading: true, error: null });
+    set({ listLoading: true, error: null });
     try {
       await networkApi.deleteIngress(namespace, name);
       set((state) => ({
         ingresses: state.ingresses.filter((i) => i.name !== name),
-        loading: false,
+        listLoading: false,
       }));
-    } catch (err: any) {
-      set({ error: err.message || 'Failed to delete ingress', loading: false });
+    } catch (err: unknown) {
+      set({ error: getErrorMessage(err) || 'Failed to delete ingress', listLoading: false });
     }
   },
 }));

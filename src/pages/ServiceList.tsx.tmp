@@ -1,5 +1,5 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { useNetworkStore } from '@/store/networkStore';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -11,7 +11,7 @@ import { useToast } from '@/components/Toast';
 
 export default function ServiceList() {
   const [namespace, setNamespace] = useState<string>('default');
-  const { services, listLoading, error, fetchServices, deleteService } = useNetworkStore();
+  const { services, loading, error, fetchServices, deleteService } = useNetworkStore();
   const { namespaces, fetchNamespaces } = useNamespaceStore();
   const toast = useToast();
 
@@ -51,11 +51,11 @@ export default function ServiceList() {
           />
           <button
             onClick={handleRefresh}
-            disabled={listLoading}
+            disabled={loading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="Refresh"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
 
@@ -89,7 +89,7 @@ export default function ServiceList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {listLoading && services.length === 0 ? (
+              {loading && services.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500">
                     <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />

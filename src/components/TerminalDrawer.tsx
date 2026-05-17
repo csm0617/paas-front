@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { podApi, Pod } from '@/lib/api';
+import { podApi } from '@/lib/api';
+import type { Pod } from '@/lib/types';
 import { X, Terminal as TerminalIcon } from 'lucide-react';
 import { Terminal } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -12,7 +13,7 @@ interface Props {
 
 export default function TerminalDrawer({ pod, onClose }: Props) {
   const terminalRef = useRef<HTMLDivElement>(null);
-  const [connected, setConnected] = useState(false);
+  const [connected, set已连接] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
 
   useEffect(() => {
@@ -40,8 +41,8 @@ export default function TerminalDrawer({ pod, onClose }: Props) {
       wsRef.current = ws;
 
       ws.onopen = () => {
-        setConnected(true);
-        term.writeln('\x1b[32m[Connected to Terminal]\x1b[0m');
+        set已连接(true);
+        term.writeln('\x1b[32m[已连接 to Terminal]\x1b[0m');
       };
 
       ws.onmessage = (event) => {
@@ -49,12 +50,12 @@ export default function TerminalDrawer({ pod, onClose }: Props) {
       };
 
       ws.onclose = () => {
-        setConnected(false);
+        set已连接(false);
         term.writeln('\n\x1b[31m[Connection Closed]\x1b[0m');
       };
 
       ws.onerror = () => {
-        setConnected(false);
+        set已连接(false);
         term.writeln('\n\x1b[31m[Connection Error]\x1b[0m');
       };
 
@@ -64,7 +65,7 @@ export default function TerminalDrawer({ pod, onClose }: Props) {
         }
       });
     }).catch(err => {
-      term.writeln(`\x1b[31m[Error fetching terminal URL]: ${err.message}\x1b[0m`);
+      term.writeln(`\x1b[31m[获取终端 URL 失败]: ${err instanceof Error ? err.message : String(err)}\x1b[0m`);
     });
 
     const handleResize = () => fitAddon.fit();
@@ -88,11 +89,11 @@ export default function TerminalDrawer({ pod, onClose }: Props) {
           <div className="flex items-center space-x-3">
             <TerminalIcon className="text-blue-400" size={24} />
             <div>
-              <h2 className="text-lg font-bold font-mono">Web Terminal</h2>
+              <h2 className="text-lg font-bold font-mono">Web 终端</h2>
               <p className="text-xs text-slate-400 mt-1 flex items-center space-x-2">
                 <span>{pod.namespace} / {pod.name}</span>
                 <span className={`w-2 h-2 rounded-full ${connected ? 'bg-emerald-500' : 'bg-red-500'}`} />
-                <span>{connected ? 'Connected' : 'Disconnected'}</span>
+                <span>{connected ? '已连接' : '已断开'}</span>
               </p>
             </div>
           </div>

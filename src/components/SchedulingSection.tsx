@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from 'react';
 import { Plus, X } from 'lucide-react';
 
@@ -15,12 +14,64 @@ interface NodeSelectorRequirementUI {
   id: string;
   key: string;
   operator: 'In' | 'NotIn' | 'Exists' | 'DoesNotExist' | 'Gt' | 'Lt';
-  values: string; // comma separated
+  values: string;
 }
 
 interface NodeAffinityUI {
   required: NodeSelectorRequirementUI[];
   preferred: { weight: number; requirement: NodeSelectorRequirementUI }[];
+}
+
+interface TolerationRaw {
+  key?: string;
+  operator?: string;
+  value?: string;
+  effect?: string;
+  tolerationSeconds?: number;
+}
+
+interface MatchExpressionRaw {
+  key?: string;
+  operator?: string;
+  values?: string[];
+}
+
+interface PreferredSchedulingTermRaw {
+  weight?: number;
+  preference?: {
+    matchExpressions?: MatchExpressionRaw[];
+  };
+}
+
+interface NodeAffinityRaw {
+  requiredDuringSchedulingIgnoredDuringExecution?: {
+    nodeSelectorTerms?: { matchExpressions: MatchExpressionRaw[] }[];
+  };
+  preferredDuringSchedulingIgnoredDuringExecution?: PreferredSchedulingTermRaw[];
+}
+
+interface AffinityRaw {
+  nodeAffinity?: NodeAffinityRaw;
+}
+
+interface TolerationOutput {
+  operator: string;
+  key?: string;
+  value?: string;
+  effect?: string;
+  tolerationSeconds?: number;
+}
+
+interface NodeAffinityOutput {
+  requiredDuringSchedulingIgnoredDuringExecution?: {
+    nodeSelectorTerms: { matchExpressions: { key: string; operator: string; values?: string[] }[] }[];
+  };
+  preferredDuringSchedulingIgnoredDuringExecution?: {
+    weight: number;
+    preference: {
+      matchExpressions: { key: string; operator: string; values?: string[] }[];
+    };
+  }[];
 }
 
 interface Props {
@@ -37,8 +88,7 @@ export default function SchedulingSection({
   affinityJson, onAffinityChange,
   tolerationsJson, onTolerationsChange
 }: Props) {
-  
-  // Standard K8s labels and taints for datalists
+
   const NODE_LABEL_MAPPING: Record<string, string[]> = {
     'kubernetes.io/os': ['linux', 'windows'],
     'kubernetes.io/arch': ['amd64', 'arm64', 'arm'],
@@ -67,18 +117,17 @@ export default function SchedulingSection({
     'node.cloudprovider.kubernetes.io/uninitialized'
   ];
 
-  // Initialize Tolerations
   const [tolerations, setTolerations] = useState<TolerationUI[]>(() => {
     try {
       if (!tolerationsJson) return [];
       const parsed = JSON.parse(tolerationsJson);
       if (Array.isArray(parsed)) {
-        return parsed.map((t: any) => ({
+        return parsed.map((t: TolerationRaw) => ({
           id: Math.random().toString(36).substring(7),
           key: t.key || '',
-          operator: t.operator || 'Equal',
+          operator: t.operator === 'Exists' ? 'Exists' : 'Equal',
           value: t.value || '',
-          effect: t.effect || '',
+          effect: (t.effect as TolerationUI['effect']) || '',
           tolerationSeconds: t.tolerationSeconds?.toString() || ''
         }));
       }
@@ -86,28 +135,27 @@ export default function SchedulingSection({
     return [];
   });
 
-  // Initialize Affinity
   const [affinity, setAffinity] = useState<NodeAffinityUI>(() => {
     const defaultAffinity: NodeAffinityUI = { required: [], preferred: [] };
     try {
       if (!affinityJson) return defaultAffinity;
-      const parsed = JSON.parse(affinityJson);
+      const parsed: AffinityRaw = JSON.parse(affinityJson);
       const nodeAffinity = parsed?.nodeAffinity;
-      
+
       if (nodeAffinity?.requiredDuringSchedulingIgnoredDuringExecution?.nodeSelectorTerms?.[0]?.matchExpressions) {
-         defaultAffinity.required = nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions.map((m: any) => ({
+         defaultAffinity.required = nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions.map((m: MatchExpressionRaw) => ({
            id: Math.random().toString(36).substring(7),
-           key: m.key, operator: m.operator, values: m.values?.join(',') || ''
+           key: m.key || '', operator: (m.operator as NodeSelectorRequirementUI['operator']) || 'In', values: m.values?.join(',') || ''
          }));
       }
-      
+
       if (nodeAffinity?.preferredDuringSchedulingIgnoredDuringExecution) {
-         defaultAffinity.preferred = nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution.map((p: any) => ({
+         defaultAffinity.preferred = nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution.map((p: PreferredSchedulingTermRaw) => ({
            weight: p.weight || 1,
            requirement: {
              id: Math.random().toString(36).substring(7),
              key: p.preference?.matchExpressions?.[0]?.key || '',
-             operator: p.preference?.matchExpressions?.[0]?.operator || 'In',
+             operator: (p.preference?.matchExpressions?.[0]?.operator as NodeSelectorRequirementUI['operator']) || 'In',
              values: p.preference?.matchExpressions?.[0]?.values?.join(',') || ''
            }
          }));
@@ -116,13 +164,11 @@ export default function SchedulingSection({
     return defaultAffinity;
   });
 
-  // Sync state to parent JSON
   useEffect(() => {
-    // Check if change is real to avoid infinite loops
     let nextVal = '';
     if (tolerations.length > 0) {
-      const mapped = tolerations.map(t => {
-        const res: any = { operator: t.operator };
+      const mapped: TolerationOutput[] = tolerations.map(t => {
+        const res: TolerationOutput = { operator: t.operator };
         if (t.key) res.key = t.key;
         if (t.operator === 'Equal' && t.value) res.value = t.value;
         if (t.effect) res.effect = t.effect;
@@ -134,13 +180,13 @@ export default function SchedulingSection({
     if (nextVal !== tolerationsJson) {
       onTolerationsChange(nextVal);
     }
-  }, [tolerations]); // Removed onTolerationsChange from deps to prevent infinite loops
+  }, [tolerations]);
 
   useEffect(() => {
     let nextVal = '';
     if (affinity.required.length > 0 || affinity.preferred.length > 0) {
-      const nodeAffinity: any = {};
-      
+      const nodeAffinity: NodeAffinityOutput = {};
+
       if (affinity.required.length > 0) {
         nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution = {
           nodeSelectorTerms: [{
@@ -152,7 +198,7 @@ export default function SchedulingSection({
           }]
         };
       }
-      
+
       if (affinity.preferred.length > 0) {
         nodeAffinity.preferredDuringSchedulingIgnoredDuringExecution = affinity.preferred.map(p => ({
           weight: p.weight,
@@ -171,7 +217,7 @@ export default function SchedulingSection({
     if (nextVal !== affinityJson) {
       onAffinityChange(nextVal);
     }
-  }, [affinity]); // Removed onAffinityChange from deps to prevent infinite loops
+  }, [affinity]);
 
   return (
     <div className="space-y-6">
@@ -187,7 +233,7 @@ export default function SchedulingSection({
 
       <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Node Selector</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">节点选择器</h4>
         </div>
         <div className="space-y-2">
           {nodeSelectorRows.map((row, idx) => {
@@ -195,9 +241,9 @@ export default function SchedulingSection({
             const suggestions = NODE_LABEL_MAPPING[row.key] || COMMON_NODE_VALUES;
             return (
               <div key={idx} className="flex items-center space-x-2">
-                <input type="text" list="node-label-keys" placeholder="Key (e.g. disktype)" className="flex-1 px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-xs" value={row.key} onChange={(e) => { const next = [...nodeSelectorRows]; next[idx].key = e.target.value; onNodeSelectorChange(next); }} />
+                <input type="text" list="node-label-keys" placeholder="键 (例如 disktype)" className="flex-1 px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-xs" value={row.key} onChange={(e) => { const next = [...nodeSelectorRows]; next[idx].key = e.target.value; onNodeSelectorChange(next); }} />
                 <span className="text-slate-400">=</span>
-                <input type="text" list={datalistId} placeholder="Value (e.g. ssd)" className="flex-1 px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-xs" value={row.value} onChange={(e) => { const next = [...nodeSelectorRows]; next[idx].value = e.target.value; onNodeSelectorChange(next); }} />
+                <input type="text" list={datalistId} placeholder="值 (例如 ssd)" className="flex-1 px-2 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-600 rounded text-xs" value={row.value} onChange={(e) => { const next = [...nodeSelectorRows]; next[idx].value = e.target.value; onNodeSelectorChange(next); }} />
                 <datalist id={datalistId}>
                   {suggestions.map(v => <option key={v} value={v} />)}
                 </datalist>
@@ -206,65 +252,64 @@ export default function SchedulingSection({
             );
           })}
           <button type="button" onClick={() => onNodeSelectorChange([...nodeSelectorRows, { key: '', value: '' }])} className="text-xs flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium mt-2">
-            <Plus size={14} /><span>Add Node Label</span>
+            <Plus size={14} /><span>添加节点标签</span>
           </button>
         </div>
       </div>
 
       <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Tolerations</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">容忍度</h4>
         </div>
         <div className="space-y-2">
           {tolerations.map((t, idx) => (
             <div key={t.id} className="flex flex-wrap items-center gap-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
-              <input type="text" list="toleration-keys" placeholder="Key" className="w-32 px-2 py-1 border rounded text-xs" value={t.key} onChange={(e) => { const next = [...tolerations]; next[idx].key = e.target.value; setTolerations(next); }} />
+              <input type="text" list="toleration-keys" placeholder="键" className="w-32 px-2 py-1 border rounded text-xs" value={t.key} onChange={(e) => { const next = [...tolerations]; next[idx].key = e.target.value; setTolerations(next); }} />
               <select className="w-24 px-2 py-1 border rounded text-xs" value={t.operator} onChange={(e) => { const next = [...tolerations]; next[idx].operator = e.target.value as 'Equal' | 'Exists'; setTolerations(next); }}>
                 <option value="Equal">Equal</option>
                 <option value="Exists">Exists</option>
               </select>
               {t.operator === 'Equal' && (
-                <input type="text" placeholder="Value" className="w-32 px-2 py-1 border rounded text-xs" value={t.value} onChange={(e) => { const next = [...tolerations]; next[idx].value = e.target.value; setTolerations(next); }} />
+                <input type="text" placeholder="值" className="w-32 px-2 py-1 border rounded text-xs" value={t.value} onChange={(e) => { const next = [...tolerations]; next[idx].value = e.target.value; setTolerations(next); }} />
               )}
               <select className="w-36 px-2 py-1 border rounded text-xs" value={t.effect} onChange={(e) => { const next = [...tolerations]; next[idx].effect = e.target.value as '' | 'NoSchedule' | 'PreferNoSchedule' | 'NoExecute'; setTolerations(next); }}>
-                <option value="">Any Effect</option>
+                <option value="">任意效果</option>
                 <option value="NoSchedule">NoSchedule</option>
                 <option value="PreferNoSchedule">PreferNoSchedule</option>
                 <option value="NoExecute">NoExecute</option>
               </select>
               {t.effect === 'NoExecute' && (
-                <input type="number" placeholder="Seconds" className="w-24 px-2 py-1 border rounded text-xs" value={t.tolerationSeconds} onChange={(e) => { const next = [...tolerations]; next[idx].tolerationSeconds = e.target.value; setTolerations(next); }} />
+                <input type="number" placeholder="秒数" className="w-24 px-2 py-1 border rounded text-xs" value={t.tolerationSeconds} onChange={(e) => { const next = [...tolerations]; next[idx].tolerationSeconds = e.target.value; setTolerations(next); }} />
               )}
               <button type="button" onClick={() => setTolerations(tolerations.filter((_, i) => i !== idx))} className="p-1 text-red-500 hover:bg-red-50 rounded ml-auto"><X size={14} /></button>
             </div>
           ))}
           <button type="button" onClick={() => setTolerations([...tolerations, { id: Math.random().toString(36).substring(7), key: '', operator: 'Equal', value: '', effect: '', tolerationSeconds: '' }])} className="text-xs flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium mt-2">
-            <Plus size={14} /><span>Add Toleration</span>
+            <Plus size={14} /><span>添加容忍度</span>
           </button>
         </div>
       </div>
 
       <div className="bg-slate-50 dark:bg-slate-900/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700">
         <div className="flex items-center justify-between mb-3">
-          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">Node Affinity</h4>
+          <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300">节点亲和性</h4>
         </div>
-        
-        {/* Required */}
+
         <div className="mb-4">
-          <label className="block text-xs font-medium text-slate-500 mb-2">Required (Hard)</label>
+          <label className="block text-xs font-medium text-slate-500 mb-2">强制要求 (Hard)</label>
           <div className="space-y-2">
             {affinity.required.map((r, idx) => {
               const datalistId = `aff-req-val-${r.id}`;
               const suggestions = NODE_LABEL_MAPPING[r.key] || COMMON_NODE_VALUES;
               return (
                 <div key={r.id} className="flex flex-wrap items-center gap-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
-                  <input type="text" list="node-label-keys" placeholder="Key" className="w-32 px-2 py-1 border rounded text-xs" value={r.key} onChange={(e) => { const next = { ...affinity }; next.required[idx].key = e.target.value; setAffinity(next); }} />
+                  <input type="text" list="node-label-keys" placeholder="键" className="w-32 px-2 py-1 border rounded text-xs" value={r.key} onChange={(e) => { const next = { ...affinity }; next.required[idx].key = e.target.value; setAffinity(next); }} />
                   <select className="w-28 px-2 py-1 border rounded text-xs" value={r.operator} onChange={(e) => { const next = { ...affinity }; next.required[idx].operator = e.target.value as 'In' | 'NotIn' | 'Exists' | 'DoesNotExist' | 'Gt' | 'Lt'; setAffinity(next); }}>
                     <option value="In">In</option><option value="NotIn">NotIn</option><option value="Exists">Exists</option><option value="DoesNotExist">DoesNotExist</option><option value="Gt">Gt</option><option value="Lt">Lt</option>
                   </select>
                   {r.operator !== 'Exists' && r.operator !== 'DoesNotExist' && (
                     <>
-                      <input type="text" list={datalistId} placeholder="Values (comma separated)" className="flex-1 min-w-[150px] px-2 py-1 border rounded text-xs" value={r.values} onChange={(e) => { const next = { ...affinity }; next.required[idx].values = e.target.value; setAffinity(next); }} />
+                      <input type="text" list={datalistId} placeholder="值 (逗号分隔)" className="flex-1 min-w-[150px] px-2 py-1 border rounded text-xs" value={r.values} onChange={(e) => { const next = { ...affinity }; next.required[idx].values = e.target.value; setAffinity(next); }} />
                       <datalist id={datalistId}>
                         {suggestions.map(v => <option key={v} value={v} />)}
                       </datalist>
@@ -275,28 +320,27 @@ export default function SchedulingSection({
               );
             })}
             <button type="button" onClick={() => { const next = { ...affinity }; next.required.push({ id: Math.random().toString(36).substring(7), key: '', operator: 'In', values: '' }); setAffinity(next); }} className="text-xs flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium">
-              <Plus size={14} /><span>Add Required Rule</span>
+              <Plus size={14} /><span>添加强制规则</span>
             </button>
           </div>
         </div>
 
-        {/* Preferred */}
         <div>
-          <label className="block text-xs font-medium text-slate-500 mb-2">Preferred (Soft)</label>
+          <label className="block text-xs font-medium text-slate-500 mb-2">优先规则 (Soft)</label>
           <div className="space-y-2">
             {affinity.preferred.map((p, idx) => {
               const datalistId = `aff-pref-val-${p.requirement.id}`;
               const suggestions = NODE_LABEL_MAPPING[p.requirement.key] || COMMON_NODE_VALUES;
               return (
                 <div key={p.requirement.id} className="flex flex-wrap items-center gap-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg">
-                  <input type="number" min="1" max="100" placeholder="Weight (1-100)" className="w-24 px-2 py-1 border rounded text-xs" value={p.weight} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].weight = parseInt(e.target.value) || 1; setAffinity(next); }} title="Weight" />
-                  <input type="text" list="node-label-keys" placeholder="Key" className="w-32 px-2 py-1 border rounded text-xs" value={p.requirement.key} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].requirement.key = e.target.value; setAffinity(next); }} />
+                  <input type="number" min="1" max="100" placeholder="权重 (1-100)" className="w-24 px-2 py-1 border rounded text-xs" value={p.weight} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].weight = parseInt(e.target.value) || 1; setAffinity(next); }} title="权重" />
+                  <input type="text" list="node-label-keys" placeholder="键" className="w-32 px-2 py-1 border rounded text-xs" value={p.requirement.key} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].requirement.key = e.target.value; setAffinity(next); }} />
                   <select className="w-28 px-2 py-1 border rounded text-xs" value={p.requirement.operator} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].requirement.operator = e.target.value as 'In' | 'NotIn' | 'Exists' | 'DoesNotExist' | 'Gt' | 'Lt'; setAffinity(next); }}>
                     <option value="In">In</option><option value="NotIn">NotIn</option><option value="Exists">Exists</option><option value="DoesNotExist">DoesNotExist</option><option value="Gt">Gt</option><option value="Lt">Lt</option>
                   </select>
                   {p.requirement.operator !== 'Exists' && p.requirement.operator !== 'DoesNotExist' && (
                     <>
-                      <input type="text" list={datalistId} placeholder="Values (comma separated)" className="flex-1 min-w-[150px] px-2 py-1 border rounded text-xs" value={p.requirement.values} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].requirement.values = e.target.value; setAffinity(next); }} />
+                      <input type="text" list={datalistId} placeholder="值 (逗号分隔)" className="flex-1 min-w-[150px] px-2 py-1 border rounded text-xs" value={p.requirement.values} onChange={(e) => { const next = { ...affinity }; next.preferred[idx].requirement.values = e.target.value; setAffinity(next); }} />
                       <datalist id={datalistId}>
                         {suggestions.map(v => <option key={v} value={v} />)}
                       </datalist>
@@ -307,7 +351,7 @@ export default function SchedulingSection({
               );
             })}
             <button type="button" onClick={() => { const next = { ...affinity }; next.preferred.push({ weight: 1, requirement: { id: Math.random().toString(36).substring(7), key: '', operator: 'In', values: '' } }); setAffinity(next); }} className="text-xs flex items-center space-x-1 text-blue-600 hover:text-blue-700 font-medium">
-              <Plus size={14} /><span>Add Preferred Rule</span>
+              <Plus size={14} /><span>添加优先规则</span>
             </button>
           </div>
         </div>

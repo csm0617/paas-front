@@ -1,10 +1,9 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useState } from 'react';
-import { CreateServiceCommand, ServicePort } from '@/lib/types';
+import { getErrorMessage } from '@/lib/utils';
+import { CreateServiceCommand, ServicePort } from '@/lib/api';
 import { useNetworkStore } from '@/store/networkStore';
 import { X, Plus, Trash2 } from 'lucide-react';
 import { toMap } from '@/lib/utils';
-import { useToast } from '@/components/Toast';
 
 interface Props {
   isOpen: boolean;
@@ -15,7 +14,6 @@ interface Props {
 export default function CreateServiceModal({ isOpen, onClose, namespace }: Props) {
   const [loading, setLoading] = useState(false);
   const { fetchServices } = useNetworkStore();
-  const toast = useToast();
   const [formData, setFormData] = useState<{
     name: string;
     type: string;
@@ -24,46 +22,46 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
     type: 'ClusterIP',
   });
 
-  const [ports, setPorts] = useState<ServicePort[]>([
+  const [ports, set端口] = useState<ServicePort[]>([
     { name: 'http', port: 80, targetPort: 80, protocol: 'TCP' }
   ]);
 
-  const [selectors, setSelectors] = useState<{ key: string; value: string }[]>([
+  const [selectors, set选择器] = useState<{ key: string; value: string }[]>([
     { key: 'app', value: '' }
   ]);
 
   if (!isOpen) return null;
 
   const handlePortChange = (index: number, field: keyof ServicePort, val: string | number) => {
-    const newPorts = [...ports];
-    newPorts[index] = { ...newPorts[index], [field]: val };
-    setPorts(newPorts);
+    const new端口 = [...ports];
+    new端口[index] = { ...new端口[index], [field]: val };
+    set端口(new端口);
   };
 
   const addPort = () => {
-    setPorts([...ports, { name: '', port: 80, targetPort: 80, protocol: 'TCP' }]);
+    set端口([...ports, { name: '', port: 80, targetPort: 80, protocol: 'TCP' }]);
   };
 
   const removePort = (index: number) => {
-    const newPorts = [...ports];
-    newPorts.splice(index, 1);
-    setPorts(newPorts);
+    const new端口 = [...ports];
+    new端口.splice(index, 1);
+    set端口(new端口);
   };
 
   const handleSelectorChange = (index: number, field: 'key' | 'value', val: string) => {
-    const newSelectors = [...selectors];
-    newSelectors[index][field] = val;
-    setSelectors(newSelectors);
+    const new选择器 = [...selectors];
+    new选择器[index][field] = val;
+    set选择器(new选择器);
   };
 
   const addSelector = () => {
-    setSelectors([...selectors, { key: '', value: '' }]);
+    set选择器([...selectors, { key: '', value: '' }]);
   };
 
   const removeSelector = (index: number) => {
-    const newSelectors = [...selectors];
-    newSelectors.splice(index, 1);
-    setSelectors(newSelectors);
+    const new选择器 = [...selectors];
+    new选择器.splice(index, 1);
+    set选择器(new选择器);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -76,13 +74,13 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
         ports: ports,
         selector: toMap(selectors),
       };
-
+      
       const { networkApi } = await import('@/lib/api');
       await networkApi.createService(namespace, command);
       await fetchServices(namespace);
       onClose();
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '创建服务失败');
+      alert(getErrorMessage(err) || '创建服务失败');
       console.error(err);
     } finally {
       setLoading(false);
@@ -107,14 +105,14 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                 <input
                   required
                   type="text"
-                  placeholder="例如 my-service"
+                  placeholder="e.g. my-service"
                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">类型</label>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Type</label>
                 <select
                   required
                   className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow outline-none cursor-pointer"
@@ -151,7 +149,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                     <div className="flex-1 grid grid-cols-2 gap-3">
                       <input
                         type="text"
-                        placeholder="名称 (例如 http)"
+                        placeholder="Name (e.g. http)"
                         className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
                         value={port.name || ''}
                         onChange={(e) => handlePortChange(i, 'name', e.target.value)}
@@ -167,7 +165,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                       <input
                         type="number"
                         required
-                        placeholder="端口"
+                        placeholder="Port"
                         className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
                         value={port.port}
                         onChange={(e) => handlePortChange(i, 'port', Number(e.target.value))}
@@ -175,7 +173,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                       <input
                         type="number"
                         required
-                        placeholder="目标端口"
+                        placeholder="Target Port"
                         className="px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 text-sm outline-none"
                         value={port.targetPort}
                         onChange={(e) => handlePortChange(i, 'targetPort', Number(e.target.value))}
@@ -215,7 +213,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                   <div key={i} className="flex items-center space-x-3">
                     <input
                       type="text"
-                      placeholder="键 (例如 app)"
+                      placeholder="KEY (e.g. app)"
                       required
                       className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm outline-none"
                       value={sel.key}
@@ -224,7 +222,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
                     <span className="text-slate-400">=</span>
                     <input
                       type="text"
-                      placeholder="值 (例如 my-app)"
+                      placeholder="VALUE (e.g. my-app)"
                       required
                       className="flex-1 px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm outline-none"
                       value={sel.value}
@@ -251,7 +249,7 @@ export default function CreateServiceModal({ isOpen, onClose, namespace }: Props
             onClick={onClose}
             className="px-5 py-2.5 text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-colors"
           >
-            取消
+            Cancel
           </button>
           <button
             type="submit"

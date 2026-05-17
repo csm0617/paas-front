@@ -1,15 +1,19 @@
+import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
 import { useNetworkStore } from '@/store/networkStore';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import ConfirmDialog from '@/components/ConfirmDialog';
 import CreateIngressModal from '@/components/CreateIngressModal';
-import { K8sIngress } from '@/lib/api';
-import { RefreshCw, FolderTree, AlertCircle, Trash2, Plus, Globe } from 'lucide-react';
+import NamespaceSelector from '@/components/NamespaceSelector';
+import type { K8sIngress } from '@/lib/types';
+import { RefreshCw, AlertCircle, Trash2, Plus, Globe } from 'lucide-react';
+import { useToast } from '@/components/Toast';
 
 export default function IngressList() {
   const [namespace, setNamespace] = useState<string>('default');
-  const { ingresses, loading, error, fetchIngresses, deleteIngress } = useNetworkStore();
+  const { ingresses, listLoading, error, fetchIngresses, deleteIngress } = useNetworkStore();
   const { namespaces, fetchNamespaces } = useNamespaceStore();
+  const toast = useToast();
 
   const [confirmDeleteIngress, setConfirmDeleteIngress] = useState<K8sIngress | null>(null);
   const [isCreateIngressOpen, setCreateIngressOpen] = useState(false);
@@ -31,8 +35,8 @@ export default function IngressList() {
     try {
       await deleteIngress(namespace, confirmDeleteIngress.name);
       setConfirmDeleteIngress(null);
-    } catch (err: any) {
-      alert(err.message || 'Failed to delete ingress');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err) || '删除入口失败');
     }
   };
 
@@ -41,33 +45,18 @@ export default function IngressList() {
       {/* Top Action Bar */}
       <div className="flex items-center justify-between bg-white dark:bg-slate-800 p-4 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700">
         <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2 bg-slate-100 dark:bg-slate-900 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
-            <FolderTree size={18} className="text-slate-500" />
-            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Namespace</span>
-            <select
-              value={namespace}
-              onChange={(e) => setNamespace(e.target.value)}
-              className="bg-transparent border-none text-sm font-bold text-blue-600 dark:text-blue-400 outline-none cursor-pointer"
-            >
-              {namespaces.length > 0 ? (
-                namespaces.map(ns => (
-                  <option key={ns.name} value={ns.name}>{ns.name}</option>
-                ))
-              ) : (
-                <>
-                  <option value="default">default</option>
-                  <option value="kube-system">kube-system</option>
-                </>
-              )}
-            </select>
-          </div>
+          <NamespaceSelector
+            currentNamespace={namespace}
+            namespaces={namespaces}
+            onChange={setNamespace}
+          />
           <button
             onClick={handleRefresh}
-            disabled={loading}
+            disabled={listLoading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
-            title="Refresh"
+            title="刷新"
           >
-            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
 
@@ -76,7 +65,7 @@ export default function IngressList() {
           className="flex items-center space-x-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-xl shadow-sm hover:shadow-md transition-all duration-200 font-medium"
         >
           <Plus size={18} />
-          <span>Create Ingress</span>
+          <span>创建入口</span>
         </button>
       </div>
 
@@ -101,17 +90,17 @@ export default function IngressList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {loading && ingresses.length === 0 ? (
+              {listLoading && ingresses.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-slate-500">
                     <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />
-                    Loading ingresses...
+                    加载入口中...
                   </td>
                 </tr>
               ) : ingresses.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="p-8 text-center text-slate-500">
-                    No ingresses found in namespace {namespace}.
+                    命名空间中暂无入口： {namespace}.
                   </td>
                 </tr>
               ) : (
@@ -135,7 +124,7 @@ export default function IngressList() {
                         <button
                           onClick={() => setConfirmDeleteIngress(ing)}
                           className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 rounded-lg transition-colors"
-                          title="Delete Ingress"
+                          title="删除入口"
                         >
                           <Trash2 size={18} />
                         </button>
@@ -151,7 +140,7 @@ export default function IngressList() {
 
       <ConfirmDialog
         isOpen={!!confirmDeleteIngress}
-        title="Delete Ingress"
+        title="删除入口"
         message={`Are you sure you want to delete ingress '${confirmDeleteIngress?.name}'?`}
         onConfirm={handleConfirmDeleteIngress}
         onCancel={() => setConfirmDeleteIngress(null)}

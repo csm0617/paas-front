@@ -1,13 +1,11 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { useNodeStore } from '@/store/nodeStore';
 import { RefreshCw, Server, ShieldAlert, ShieldCheck, AlertCircle } from 'lucide-react';
 import ConfirmDialog from '@/components/ConfirmDialog';
-import { useToast } from '@/components/Toast';
 
 export default function NodeList() {
-  const { nodes, listLoading, error, fetchNodes, cordonNode, uncordonNode } = useNodeStore();
-  const toast = useToast();
+  const { nodes, loading, error, fetchNodes, cordonNode, uncordonNode } = useNodeStore();
   const [confirmAction, setConfirmAction] = useState<{ type: 'cordon' | 'uncordon'; nodeName: string } | null>(null);
   const [actionLoading, setActionLoading] = useState(false);
 
@@ -29,7 +27,7 @@ export default function NodeList() {
         await uncordonNode(confirmAction.nodeName);
       }
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '节点操作失败');
+      alert(getErrorMessage(err) || '节点操作失败');
     } finally {
       setActionLoading(false);
       setConfirmAction(null);
@@ -47,11 +45,11 @@ export default function NodeList() {
           </div>
           <button
             onClick={() => fetchNodes()}
-            disabled={listLoading || actionLoading}
+            disabled={loading || actionLoading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors disabled:opacity-50"
             title="刷新"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
       </div>
@@ -80,7 +78,7 @@ export default function NodeList() {
               </tr>
             </thead>
             <tbody>
-              {listLoading && (!nodes || nodes.length === 0) ? (
+              {loading && (!nodes || nodes.length === 0) ? (
                 <tr>
                   <td colSpan={8} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3 text-slate-400">

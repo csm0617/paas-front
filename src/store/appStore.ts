@@ -1,131 +1,143 @@
+import { getErrorMessage } from '@/lib/utils';
 import { create } from 'zustand';
-import { api, Application, DeployCommand } from '@/lib/api';
+import { applicationApi } from '@/lib/api';
+import type { Application, DeployCommand } from '@/lib/types';
 
 interface AppState {
-  namespace: string;
-  deployments: Application[];
-  loading: boolean;
-  error: string | null;
-
-  setNamespace: (namespace: string) => void;
-  fetchDeployments: () => Promise<void>;
-  deploy: (command: DeployCommand) => Promise<void>;
-  scale: (name: string, serviceName: string, workloadName: string, replicas: number) => Promise<void>;
-  updateImage: (name: string, serviceName: string, workloadName: string, image: string) => Promise<void>;
-  deleteDeployment: (name: string) => Promise<void>;
-  start: (name: string) => Promise<void>;
-  stop: (name: string) => Promise<void>;
-  restart: (name: string, serviceName: string, workloadName: string) => Promise<void>;
-  rollback: (name: string, serviceName: string, workloadName: string) => Promise<void>;
+    deployments: Application[];
+    listLoading: boolean;
+    actionLoading: boolean;
+    error: string | null;
+    fetchDeployments: (namespace: string) => Promise<void>;
+    deploy: (namespace: string, command: DeployCommand) => Promise<void>;
+    scale: (namespace: string, name: string, serviceName: string, workloadName: string, replicas: number) => Promise<void>;
+    updateImage: (namespace: string, name: string, serviceName: string, workloadName: string, image: string) => Promise<void>;
+    deleteDeployment: (namespace: string, name: string) => Promise<void>;
+    start: (namespace: string, name: string) => Promise<void>;
+    stop: (namespace: string, name: string) => Promise<void>;
+    restart: (namespace: string, name: string, serviceName: string, workloadName: string) => Promise<void>;
+    rollback: (namespace: string, name: string, serviceName: string, workloadName: string) => Promise<void>;
 }
 
 let fetchDeploymentsTimeout: ReturnType<typeof setTimeout> | null = null;
 
 export const useAppStore = create<AppState>((set, get) => ({
-  namespace: 'default',
-  deployments: [],
-  loading: false,
-  error: null,
+    deployments: [],
+    listLoading: false,
+    actionLoading: false,
+    error: null,
 
-  setNamespace: (namespace) => {
-    set({ namespace });
-  },
+    fetchDeployments: (namespace: string) => {
+        return new Promise<void>((resolve) => {
+            if (fetchDeploymentsTimeout) {
+                clearTimeout(fetchDeploymentsTimeout);
+            }
+            fetchDeploymentsTimeout = setTimeout(async () => {
+                set({ listLoading: true, error: null });
+                try {
+                    const data = await applicationApi.getDeployments(namespace);
+                    set({ deployments: data, listLoading: false });
+                } catch (err: unknown) {
+                    set({ error: getErrorMessage(err) || '获取部署列表失败', listLoading: false });
+                }
+                resolve();
+            }, 300);
+        });
+    },
 
-  fetchDeployments: () => {
-    return new Promise<void>((resolve) => {
-      if (fetchDeploymentsTimeout) {
-        clearTimeout(fetchDeploymentsTimeout);
-      }
-      fetchDeploymentsTimeout = setTimeout(async () => {
-        set({ loading: true, error: null });
+    deploy: async (namespace: string, command) => {
+        set({ actionLoading: true });
         try {
-          const { namespace } = get();
-          const data = await api.getDeployments(namespace);
-          set({ deployments: data, loading: false });
-        } catch (err: any) {
-          set({ error: err.message || 'Failed to fetch deployments', loading: false });
+            await applicationApi.deploy(command);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '部署失败');
+        } finally {
+            set({ actionLoading: false });
         }
-        resolve();
-      }, 300); // 300ms debounce
-    });
-  },
+    },
 
-  deploy: async (command) => {
-    try {
-      await api.deploy(command);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to deploy');
-    }
-  },
+    scale: async (namespace, name, serviceName, workloadName, replicas) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.scaleWorkload(namespace, name, serviceName, workloadName, replicas);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '扩缩容失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  scale: async (name, serviceName, workloadName, replicas) => {
-    try {
-      const { namespace } = get();
-      await api.scaleWorkload(namespace, name, serviceName, workloadName, replicas);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to scale');
-    }
-  },
+    updateImage: async (namespace, name, serviceName, workloadName, image) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.updateWorkloadImage(namespace, name, serviceName, workloadName, image);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '更新镜像失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  updateImage: async (name, serviceName, workloadName, image) => {
-    try {
-      const { namespace } = get();
-      await api.updateWorkloadImage(namespace, name, serviceName, workloadName, image);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to update image');
-    }
-  },
+    deleteDeployment: async (namespace, name) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.delete(namespace, name);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '删除部署失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  deleteDeployment: async (name) => {
-    try {
-      const { namespace } = get();
-      await api.delete(namespace, name);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to delete deployment');
-    }
-  },
+    start: async (namespace, name) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.start(namespace, name);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '启动部署失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  start: async (name) => {
-    try {
-      const { namespace } = get();
-      await api.start(namespace, name);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to start deployment');
-    }
-  },
+    stop: async (namespace, name) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.stop(namespace, name);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '停止部署失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  stop: async (name) => {
-    try {
-      const { namespace } = get();
-      await api.stop(namespace, name);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to stop deployment');
-    }
-  },
+    restart: async (namespace, name, serviceName, workloadName) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.restartWorkload(namespace, name, serviceName, workloadName);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '重启部署失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 
-  restart: async (name, serviceName, workloadName) => {
-    try {
-      const { namespace } = get();
-      await api.restartWorkload(namespace, name, serviceName, workloadName);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to restart deployment');
-    }
-  },
-
-  rollback: async (name, serviceName, workloadName) => {
-    try {
-      const { namespace } = get();
-      await api.rollbackWorkload(namespace, name, serviceName, workloadName);
-      get().fetchDeployments();
-    } catch (err: any) {
-      throw new Error(err.response?.data?.message || err.message || 'Failed to rollback deployment');
-    }
-  },
+    rollback: async (namespace, name, serviceName, workloadName) => {
+        set({ actionLoading: true });
+        try {
+            await applicationApi.rollbackWorkload(namespace, name, serviceName, workloadName);
+            get().fetchDeployments(namespace);
+        } catch (err: unknown) {
+            throw new Error(getErrorMessage(err) || '回滚部署失败');
+        } finally {
+            set({ actionLoading: false });
+        }
+    },
 }));

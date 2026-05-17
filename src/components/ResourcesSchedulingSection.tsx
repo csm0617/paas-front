@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { useNamespaceStore } from '@/store/namespaceStore';
+import { toMap, validateJson } from '@/lib/utils';
 
 export type ResourcesSchedulingValue = {
   requestsCpu?: string;
@@ -16,17 +17,6 @@ type Props = {
   value: ResourcesSchedulingValue;
   onChange: (next: ResourcesSchedulingValue) => void;
   namespaceName?: string;
-};
-
-const validateJson = (text: string | undefined) => {
-  const trimmed = (text ?? '').trim();
-  if (!trimmed) return null;
-  try {
-    JSON.parse(trimmed);
-    return null;
-  } catch (e: any) {
-    return e?.message ? String(e.message) : 'Invalid JSON';
-  }
 };
 
 export default function ResourcesSchedulingSection({ value, onChange, namespaceName }: Props) {
@@ -57,17 +47,9 @@ export default function ResourcesSchedulingSection({ value, onChange, namespaceN
   const affinityError = validateJson(value.affinityJson);
   const tolerationsError = validateJson(value.tolerationsJson);
 
-  const toNodeSelectorMap = (rows: { key: string; value: string }[]) => {
-    return rows.reduce((acc, curr) => {
-      const k = curr.key.trim();
-      if (k) acc[k] = curr.value;
-      return acc;
-    }, {} as Record<string, string>);
-  };
-
   const updateNodeSelectorRows = (rows: { key: string; value: string }[]) => {
     setNodeSelectorRows(rows);
-    onChange({ ...value, nodeSelector: toNodeSelectorMap(rows) });
+    onChange({ ...value, nodeSelector: toMap(rows) });
   };
 
   return (

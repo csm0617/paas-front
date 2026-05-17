@@ -1,7 +1,7 @@
-import React, { useCallback, useEffect, useState, useRef } from 'react';
-import { Application, ApplicationService, eventApi, K8sEvent, podApi, Pod } from '@/lib/api';
-import { Activity, Box, Cpu, Trash2, Edit3, TerminalSquare, FileText, ArrowUpCircle, Play, Square, RotateCw, Undo2, ChevronDown, ChevronUp, FileCode, ListOrdered, Layers, Settings } from 'lucide-react';
-import { useK8sWatch } from '@/hooks/useK8sWatch';
+import React, { useState } from 'react';
+import type { Application, ApplicationService, Pod } from '@/lib/types';
+import { Activity, Box, Cpu, Trash2, Play, Square, ChevronDown, ChevronUp, FileCode, Layers, Settings } from 'lucide-react';
+import WorkloadSubCard from '@/components/WorkloadSubCard';
 
 interface Props {
   app: Application;
@@ -42,7 +42,6 @@ export default function ApplicationCard({
 
   const [expanded, setExpanded] = useState(false);
 
-  const totalReplicas = app.services.reduce((acc, svc) => acc + svc.replicas, 0);
   const computedStatus = app.status || 'UNKNOWN';
 
   return (
@@ -92,7 +91,7 @@ export default function ApplicationCard({
           <div className="flex flex-col">
             <span className="text-xs text-slate-500 dark:text-slate-400 font-medium uppercase tracking-wider mb-1 flex items-center space-x-1">
               <Cpu size={12} />
-              <span>Services</span>
+              <span>服务</span>
             </span>
             <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
                 {app.services.length}
@@ -105,7 +104,7 @@ export default function ApplicationCard({
             <button
               onClick={() => onStart(app)}
               className="flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-emerald-600 hover:bg-emerald-50 hover:border-emerald-200 transition-colors"
-              title="Start All"
+              title="全部启动"
             >
               <Play size={18} />
             </button>
@@ -113,7 +112,7 @@ export default function ApplicationCard({
             <button
               onClick={() => onStop(app)}
               className="flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-800 transition-colors"
-              title="Stop All"
+              title="全部停止"
             >
               <Square size={18} />
             </button>
@@ -121,14 +120,14 @@ export default function ApplicationCard({
           <button
             onClick={() => setExpanded(!expanded)}
             className={`flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg transition-colors ${expanded ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-slate-500 hover:bg-slate-100 hover:text-slate-800'}`}
-            title={expanded ? "Hide Services" : "Show Services"}
+            title={expanded ? "收起服务" : "展开服务"}
           >
             {expanded ? <ChevronUp size={18} /> : <ChevronDown size={18} />}
           </button>
           <button
             onClick={() => onDelete(app)}
             className="flex items-center justify-center p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-600 rounded-lg text-red-500 hover:bg-red-50 hover:border-red-200 transition-colors ml-auto"
-            title="Delete Application"
+            title="删除应用"
           >
             <Trash2 size={18} />
           </button>
@@ -199,10 +198,10 @@ function ServiceSubCard({
           </span>
         </div>
         <div className="flex space-x-1">
-          <button onClick={() => onEditService(app, svc.name)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md" title="Edit Service">
+          <button onClick={() => onEditService(app, svc.name)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md" title="编辑服务">
             <Settings size={14} />
           </button>
-          <button onClick={() => onViewYaml(app, svc.name)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-md" title="View Service YAML">
+          <button onClick={() => onViewYaml(app, svc.name)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-md" title="查看服务 YAML">
             <FileCode size={14} />
           </button>
         </div>
@@ -215,6 +214,7 @@ function ServiceSubCard({
             app={app}
             svc={svc}
             workload={c}
+            variant="card"
             onScale={onScale}
             onUpdateImage={onUpdateImage}
             onRestart={onRestart}
@@ -226,168 +226,6 @@ function ServiceSubCard({
             onViewEvents={onViewEvents}
           />
         ))}
-      </div>
-    </div>
-  );
-}
-
-function WorkloadSubCard({
-  app,
-  svc,
-  workload,
-  onScale,
-  onUpdateImage,
-  onRestart,
-  onRollback,
-  onViewYaml,
-  onViewLogs,
-  onOpenTerminal,
-  onDeletePod,
-  onViewEvents
-}: {
-  app: Application;
-  svc: ApplicationService;
-  workload: any;
-  onScale: Props['onScale'];
-  onUpdateImage: Props['onUpdateImage'];
-  onRestart: Props['onRestart'];
-  onRollback: Props['onRollback'];
-  onViewYaml: Props['onViewYaml'];
-  onViewLogs: Props['onViewLogs'];
-  onOpenTerminal: Props['onOpenTerminal'];
-  onDeletePod: Props['onDeletePod'];
-  onViewEvents: Props['onViewEvents'];
-}) {
-  const [pods, setPods] = useState<Pod[]>([]);
-  const [loadingPods, setLoadingPods] = useState(false);
-  const [podsError, setPodsError] = useState<string | null>(null);
-
-  const getErrorMessage = useCallback((err: unknown) => {
-    if (typeof err === 'object' && err !== null) {
-      const e = err as { message?: unknown; response?: { data?: { message?: unknown } } };
-      const responseMessage = e.response?.data?.message;
-      if (typeof responseMessage === 'string' && responseMessage.trim()) return responseMessage;
-      if (typeof e.message === 'string' && e.message.trim()) return e.message;
-    }
-    return 'Request failed';
-  }, []);
-
-  const fetchPodsTimeout = useRef<number | null>(null);
-
-  const fetchPods = useCallback(() => {
-    if (fetchPodsTimeout.current) window.clearTimeout(fetchPodsTimeout.current);
-    fetchPodsTimeout.current = window.setTimeout(async () => {
-      try {
-        setLoadingPods(true);
-        setPodsError(null);
-        const data = await podApi.list(app.namespace, { 'paas.csm.com/service': svc.name, 'paas.csm.com/workload': workload.name });
-        setPods(data);
-      } catch (err) {
-        setPodsError(getErrorMessage(err));
-      } finally {
-        setLoadingPods(false);
-      }
-    }, 300);
-  }, [app.namespace, svc.name, workload.name, getErrorMessage]);
-
-  useEffect(() => {
-    fetchPods();
-  }, [fetchPods]);
-
-  useK8sWatch(app.namespace, (event) => {
-    if (event.type === 'pod') {
-      fetchPods();
-    }
-  });
-
-  const getPhaseMeta = (pod: Pod) => {
-    const phase = pod.phase || pod.status || 'Unknown';
-    const normalized = phase.toLowerCase();
-    if (normalized === 'running') return { phase, cls: 'bg-emerald-100 text-emerald-700' };
-    if (normalized === 'succeeded') return { phase, cls: 'bg-emerald-100 text-emerald-700' };
-    if (normalized === 'failed') return { phase, cls: 'bg-red-100 text-red-700' };
-    if (normalized === 'pending') return { phase, cls: 'bg-amber-100 text-amber-700' };
-    return { phase, cls: 'bg-slate-200 text-slate-700' };
-  };
-
-  const podDiagnosis = (pod: Pod) => {
-    const reason = (pod.reason || '').trim();
-    const message = (pod.message || '').trim();
-    if (!reason && !message) return '';
-    if (reason && message) return `${reason}: ${message}`;
-    return reason || message;
-  };
-
-  return (
-    <div className="bg-white dark:bg-slate-800 rounded-lg p-3 border border-slate-200 dark:border-slate-700">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex flex-col truncate">
-          <span className="font-semibold text-sm text-slate-700 dark:text-slate-300">{workload.name}</span>
-          <span className="text-slate-500 font-mono text-xs truncate max-w-[200px]">{workload.image}</span>
-        </div>
-        <div className="flex space-x-1">
-          <button onClick={() => onUpdateImage(app, svc.name, workload.name, workload.image)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md" title="Update Image">
-            <Edit3 size={14} />
-          </button>
-          <button onClick={() => onScale(app, svc.name, workload.name, workload.replicas ?? 1)} className="p-1.5 text-slate-500 hover:text-blue-600 hover:bg-blue-50 rounded-md" title="Scale">
-            <ArrowUpCircle size={14} />
-          </button>
-          <button onClick={() => onRestart(app, svc.name, workload.name)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-md" title="Restart">
-            <RotateCw size={14} />
-          </button>
-          <button onClick={() => onRollback(app, svc.name, workload.name)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-md" title="Rollback">
-            <Undo2 size={14} />
-          </button>
-          <button onClick={() => onViewYaml(app, svc.name, workload.name)} className="p-1.5 text-slate-500 hover:text-slate-800 hover:bg-slate-200 rounded-md" title="View Workload YAML">
-            <FileCode size={14} />
-          </button>
-        </div>
-      </div>
-
-      <div className="pt-2 border-t border-slate-100 dark:border-slate-700/50">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs font-semibold text-slate-500">Pods ({pods.length}/{workload.replicas ?? 1})</span>
-          <button onClick={fetchPods} disabled={loadingPods} className="text-xs text-slate-500 hover:text-slate-700">
-            <RotateCw size={12} className={loadingPods ? 'animate-spin' : ''} />
-          </button>
-        </div>
-        
-        {podsError && <div className="text-[10px] text-red-500 mb-2">{podsError}</div>}
-        
-        <div className="space-y-1">
-          {pods.map(pod => {
-            const phaseMeta = getPhaseMeta(pod);
-            const diag = podDiagnosis(pod);
-            return (
-              <div key={pod.name} className="flex flex-col bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded border border-slate-200 dark:border-slate-700">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-mono text-slate-700 dark:text-slate-300 truncate w-32" title={pod.name}>{pod.name}</span>
-                  <span className={`flex items-center space-x-1 text-[9px] px-1 py-0.5 rounded-sm ${phaseMeta.cls}`}>
-                    <Activity size={8} className={phaseMeta.phase.toLowerCase() === 'running' ? 'animate-pulse' : ''} />
-                    <span>{phaseMeta.phase}</span>
-                  </span>
-                </div>
-                {diag && (
-                  <div className="mt-0.5 text-[9px] text-slate-500 truncate" title={diag}>{diag}</div>
-                )}
-                <div className="flex justify-end space-x-1 mt-1">
-                  <button onClick={() => onViewLogs(pod)} className="p-0.5 text-slate-400 hover:text-blue-500" title="Logs">
-                    <FileText size={12} />
-                  </button>
-                  <button onClick={() => onOpenTerminal(pod)} className="p-0.5 text-slate-400 hover:text-blue-500" title="Terminal">
-                    <TerminalSquare size={12} />
-                  </button>
-                  <button onClick={() => onViewEvents(app)} className="p-0.5 text-slate-400 hover:text-blue-500" title="Events">
-                    <ListOrdered size={12} />
-                  </button>
-                  <button onClick={() => onDeletePod(pod)} className="p-0.5 text-slate-400 hover:text-red-500 ml-1" title="Delete Pod">
-                    <Trash2 size={12} />
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
     </div>
   );

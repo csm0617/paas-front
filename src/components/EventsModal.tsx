@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { X, RotateCw, AlertCircle } from 'lucide-react';
-import { Application, K8sEvent, eventApi } from '@/lib/api';
+import { eventApi } from '@/lib/api';
+import type { Application, K8sEvent } from '@/lib/types';
+import { getErrorMessage } from '@/lib/utils';
 
 interface Props {
   app: Application | null;
@@ -12,19 +14,6 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
   const [events, setEvents] = useState<K8sEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const getErrorMessage = useCallback((err: unknown) => {
-    if (err && typeof err === 'object') {
-      const e = err as {
-        message?: unknown;
-        response?: { data?: { message?: unknown } };
-      };
-      const responseMessage = e.response?.data?.message;
-      if (typeof responseMessage === 'string' && responseMessage.trim()) return responseMessage;
-      if (typeof e.message === 'string' && e.message.trim()) return e.message;
-    }
-    return '请求失败';
-  }, []);
 
   const fetchEventsTimeout = useRef<number | null>(null);
 
@@ -55,7 +44,7 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
         setLoading(false);
       }
     }, 300);
-  }, [app, getErrorMessage]);
+  }, [app]);
 
   useEffect(() => {
     if (isOpen && app) {
@@ -75,10 +64,10 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
         <div className="flex items-center justify-between p-4 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-900/20">
           <div>
             <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 flex items-center space-x-2">
-              <span>Events: {app.name}</span>
+              <span>事件： {app.name}</span>
             </h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-mono">
-              Namespace: {app.namespace}
+              命名空间：{app.namespace}
             </p>
           </div>
           <div className="flex items-center space-x-2">
@@ -105,7 +94,7 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
             <div className="mb-4 flex items-center justify-between bg-red-50 border border-red-200 text-red-700 rounded-lg px-4 py-3 text-sm">
               <div className="flex items-center space-x-2">
                 <AlertCircle size={16} />
-                <span className="font-medium">Failed to load events: {error}</span>
+                <span className="font-medium">加载事件失败： {error}</span>
               </div>
               <button onClick={fetchEvents} className="text-red-700 hover:text-red-900 font-bold" disabled={loading}>
                 Retry
@@ -116,11 +105,11 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
           {loading && events.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
               <RotateCw size={32} className="animate-spin mb-4 text-blue-500" />
-              <p>Loading events...</p>
+              <p>加载事件中...</p>
             </div>
           ) : events.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-slate-400">
-              <p>No events found for this application.</p>
+              <p>暂无该应用的事件。</p>
             </div>
           ) : (
             <div className="space-y-3">
@@ -160,7 +149,7 @@ export default function EventsModal({ app, isOpen, onClose }: Props) {
                           </div>
                         )}
                         <div className="mt-3 text-xs text-slate-500 dark:text-slate-400 font-mono bg-slate-50 dark:bg-slate-900/50 p-2 rounded border border-slate-100 dark:border-slate-700/50 inline-block">
-                          Target: {involved}
+                          目标： {involved}
                         </div>
                       </div>
                       {time && (

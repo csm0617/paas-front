@@ -1,13 +1,11 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { useNamespaceStore } from '@/store/namespaceStore';
-import { useToast } from '@/components/Toast';
 import { Plus, RefreshCw, Trash2, FolderTree, AlertCircle } from 'lucide-react';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
 export default function NamespaceList() {
-  const { namespaces, listLoading, error, fetchNamespaces, createNamespace, deleteNamespace } = useNamespaceStore();
-  const toast = useToast();
+  const { namespaces, loading, error, fetchNamespaces, createNamespace, deleteNamespace } = useNamespaceStore();
   const [newNamespaceName, setNewNamespaceName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
   const [confirmDeleteNamespace, setConfirmDeleteNamespace] = useState<string | null>(null);
@@ -25,7 +23,7 @@ export default function NamespaceList() {
       await createNamespace({ name: newNamespaceName.trim() });
       setNewNamespaceName('');
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '创建命名空间失败');
+      alert(getErrorMessage(err) || '创建命名空间失败');
     } finally {
       setIsCreating(false);
     }
@@ -33,7 +31,7 @@ export default function NamespaceList() {
 
   const handleDeleteClick = (name: string) => {
     if (name === 'default' || name === 'kube-system' || name === 'kube-public' || name === 'kube-node-lease') {
-      toast.error(`无法删除系统命名空间: ${name}`);
+      alert(`无法删除系统命名空间: ${name}`);
       return;
     }
     setConfirmDeleteNamespace(name);
@@ -44,7 +42,7 @@ export default function NamespaceList() {
     try {
       await deleteNamespace(confirmDeleteNamespace);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '删除命名空间失败');
+      alert(getErrorMessage(err) || '删除命名空间失败');
     }
   };
 
@@ -59,11 +57,11 @@ export default function NamespaceList() {
           </div>
           <button
             onClick={() => fetchNamespaces()}
-            disabled={listLoading}
+            disabled={loading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="刷新"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
 
@@ -109,7 +107,7 @@ export default function NamespaceList() {
               </tr>
             </thead>
             <tbody>
-              {listLoading && namespaces.length === 0 ? (
+              {loading && namespaces.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="px-6 py-8 text-center">
                     <div className="flex flex-col items-center justify-center space-y-3 text-slate-400">

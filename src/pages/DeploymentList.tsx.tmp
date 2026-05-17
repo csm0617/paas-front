@@ -1,5 +1,5 @@
-import { getErrorMessage } from '@/lib/utils';
 import React, { useEffect, useState } from 'react';
+import { getErrorMessage } from '@/lib/utils';
 import { useDeploymentStore } from '@/store/deploymentStore';
 import { useNamespaceStore } from '@/store/namespaceStore';
 import ConfirmDialog from '@/components/ConfirmDialog';
@@ -12,8 +12,7 @@ import { useToast } from '@/components/Toast';
 
 export default function DeploymentList() {
   const { currentNamespace, setCurrentNamespace, namespaces, fetchNamespaces } = useNamespaceStore();
-  const { deployments, listLoading, error, fetchDeployments, deleteDeployment, createDeployment, scaleDeployment, updateDeploymentImage, restartDeployment } = useDeploymentStore();
-  const toast = useToast();
+  const { deployments, loading, error, fetchDeployments, deleteDeployment, createDeployment, scaleDeployment, updateDeploymentImage, restartDeployment } = useDeploymentStore();
 
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState<K8sDeployment | null>(null);
@@ -40,11 +39,11 @@ export default function DeploymentList() {
     try {
       await deleteDeployment(currentNamespace, confirmDelete.name);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '删除部署失败');
+      alert(getErrorMessage(err) || '删除部署失败');
     }
   };
 
-  const handleCreateSubmit = async (namespace: string, request: CreateDeploymentCommand) => {
+  const handleCreateSubmit = async (namespace: string, request: CreateDeploymentRequest) => {
     await createDeployment(namespace, request);
   };
 
@@ -64,7 +63,7 @@ export default function DeploymentList() {
         if (!isNaN(replicas) && replicas >= 0) {
           await scaleDeployment(currentNamespace, inputAction.deployment.name, replicas);
         } else {
-          toast.error('无效的副本数');
+          alert('无效的副本数');
         }
       } else if (inputAction.type === 'image') {
         const image = value.trim();
@@ -73,7 +72,7 @@ export default function DeploymentList() {
         }
       }
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '更新失败');
+      alert(getErrorMessage(err) || '更新失败');
     } finally {
       setInputAction(null);
     }
@@ -88,7 +87,7 @@ export default function DeploymentList() {
     try {
       await restartDeployment(currentNamespace, confirmRestart.name);
     } catch (err: unknown) {
-      toast.error(getErrorMessage(err) || '重启部署失败');
+      alert(getErrorMessage(err) || '重启部署失败');
     }
   };
 
@@ -104,11 +103,11 @@ export default function DeploymentList() {
           />
           <button
             onClick={() => fetchDeployments(currentNamespace)}
-            disabled={listLoading}
+            disabled={loading}
             className="p-2 text-slate-500 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-xl transition-colors"
             title="刷新"
           >
-            <RefreshCw size={20} className={listLoading ? 'animate-spin text-blue-500' : ''} />
+            <RefreshCw size={20} className={loading ? 'animate-spin text-blue-500' : ''} />
           </button>
         </div>
         <button
@@ -142,7 +141,7 @@ export default function DeploymentList() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
-              {listLoading && deployments.length === 0 ? (
+              {loading && deployments.length === 0 ? (
                 <tr>
                   <td colSpan={6} className="p-8 text-center text-slate-500">
                     <RefreshCw size={24} className="animate-spin mx-auto text-blue-500 mb-2" />
